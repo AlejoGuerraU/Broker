@@ -1,5 +1,6 @@
 package com.broker.backend.controller;
 
+import com.broker.backend.exception.BusinessException;
 import com.broker.backend.exception.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,12 @@ public class RestExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(ResourceNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", exception.getMessage()));
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<Map<String, String>> handleBusiness(BusinessException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", exception.getMessage()));
     }
 

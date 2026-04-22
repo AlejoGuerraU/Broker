@@ -1,31 +1,75 @@
 package com.broker.backend.service;
 
-import com.broker.backend.model.portafolio.OrderStatus;
-import com.broker.backend.model.portafolio.OrderType;
+import com.broker.backend.model.portafolio.PortfolioMapper;
+import com.broker.backend.model.portafolio.PortfolioAccountSummaryResponse;
 import com.broker.backend.model.portafolio.PortfolioOrderResponse;
 import com.broker.backend.model.portafolio.PortfolioPositionResponse;
+import com.broker.backend.persistence.entity.CuentaBrokerEntity;
+import com.broker.backend.persistence.repository.HistorialPrecioRepository;
+import com.broker.backend.persistence.repository.OrdenRepository;
+import com.broker.backend.persistence.repository.PosicionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)
 public class PortfolioService {
 
-    public List<PortfolioPositionResponse> getPositions() {
-        return List.of(
-                new PortfolioPositionResponse(1L, "AAPL", "Apple Inc.", "Tecnologia", 12, 182.35, 196.42, 1.26),
-                new PortfolioPositionResponse(2L, "MSFT", "Microsoft Corp.", "Tecnologia", 8, 401.2, 417.8, 0.84),
-                new PortfolioPositionResponse(3L, "KO", "Coca-Cola Co.", "Consumo", 20, 58.1, 56.92, -0.63),
-                new PortfolioPositionResponse(4L, "JPM", "JPMorgan Chase", "Financiero", 10, 191.7, 198.55, 0.47)
-        );
+    private final PosicionRepository posicionRepository;
+    private final OrdenRepository ordenRepository;
+    private final HistorialPrecioRepository historialPrecioRepository;
+    private final DefaultCuentaBrokerService defaultCuentaBrokerService;
+    private final MarketService marketService;
+    private final PortfolioMapper portfolioMapper;
+
+    public PortfolioService(
+            PosicionRepository posicionRepository,
+            OrdenRepository ordenRepository,
+            HistorialPrecioRepository historialPrecioRepository,
+            DefaultCuentaBrokerService defaultCuentaBrokerService,
+            MarketService marketService,
+            PortfolioMapper portfolioMapper
+    ) {
+        this.posicionRepository = posicionRepository;
+        this.ordenRepository = ordenRepository;
+        this.historialPrecioRepository = historialPrecioRepository;
+        this.defaultCuentaBrokerService = defaultCuentaBrokerService;
+        this.marketService = marketService;
+        this.portfolioMapper = portfolioMapper;
     }
 
-    public List<PortfolioOrderResponse> getOrders() {
-        return List.of(
-                new PortfolioOrderResponse(1L, "2026-03-21", "AAPL", OrderType.buy, 4, 191.5, OrderStatus.filled),
-                new PortfolioOrderResponse(2L, "2026-03-24", "MSFT", OrderType.buy, 2, 412.2, OrderStatus.filled),
-                new PortfolioOrderResponse(3L, "2026-03-28", "KO", OrderType.sell, 5, 57.4, OrderStatus.pending),
-                new PortfolioOrderResponse(4L, "2026-03-30", "JPM", OrderType.buy, 3, 197.1, OrderStatus.cancelled)
+    public List<PortfolioPositionResponse> getPositions(String userEmail) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+        List<String> trackedSymbols = posicionRepository.findAllByCuentaBrokerIdOrderByActivoSimboloAsc(cuentaBroker.getId()).stream()
+                .map(posicion -> posicion.getActivo().getSimbolo())
+                .toList();
+
+        marketService.refreshAssetQuotes(trackedSymbols);
+
+        return posicionRepository.findAllByCuentaBrokerIdOrderByActivoSimboloAsc(cuentaBroker.getId()).stream()
+                .map(posicion -> portfolioMapper.toPositionResponse(
+                        posicion,
+                        historialPrecioRepository.findTop2ByActivoIdOrderByFechaDesc(posicion.getActivo().getId())
+                ))
+                .toList();
+    }
+
+    public List<PortfolioOrderResponse> getOrders(String userEmail) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+
+        return ordenRepository.findAllByCuentaBrokerIdOrderByFechaCreacionDescIdDesc(cuentaBroker.getId()).stream()
+                .map(portfolioMapper::toOrderResponse)
+                .toList();
+    }
+
+    public PortfolioAccountSummaryResponse getAccountSummary(String userEmail) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+
+        return new PortfolioAccountSummaryResponse(
+                cuentaBroker.getSaldoDisponible().doubleValue(),
+                cuentaBroker.getSaldoCongelado().doubleValue()
         );
     }
 }

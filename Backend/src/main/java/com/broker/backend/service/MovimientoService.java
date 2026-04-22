@@ -2,77 +2,107 @@ package com.broker.backend.service;
 
 import com.broker.backend.exception.ResourceNotFoundException;
 import com.broker.backend.model.movimiento.CreateMovimientoRequest;
+import com.broker.backend.model.movimiento.MovimientoMapper;
 import com.broker.backend.model.movimiento.MovimientoResponse;
-import com.broker.backend.model.movimiento.MovimientoType;
+import com.broker.backend.persistence.entity.CategoriaEntity;
+import com.broker.backend.persistence.entity.CuentaGestorEntity;
+import com.broker.backend.persistence.entity.MovimientoEntity;
+import com.broker.backend.persistence.repository.CuentaGestorRepository;
+import com.broker.backend.persistence.repository.MovimientoRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
+@Transactional
 public class MovimientoService {
 
-    private final AtomicLong idSequence = new AtomicLong(8);
-    private final List<MovimientoResponse> movimientos = new ArrayList<>(List.of(
-            new MovimientoResponse(1L, "Salario mensual", "Salario", "2026-02-28", 4500.0, MovimientoType.income),
-            new MovimientoResponse(2L, "Alquiler", "Vivienda", "2026-02-28", 1200.0, MovimientoType.expense),
-            new MovimientoResponse(3L, "Supermercado", "Alimentacion", "2026-03-04", 320.0, MovimientoType.expense),
-            new MovimientoResponse(4L, "Freelance diseno web", "Freelance", "2026-03-07", 850.0, MovimientoType.income),
-            new MovimientoResponse(5L, "Suscripcion Netflix", "Entretenimiento", "2026-03-09", 15.99, MovimientoType.expense),
-            new MovimientoResponse(6L, "Electricidad", "Servicios", "2026-03-11", 85.0, MovimientoType.expense),
-            new MovimientoResponse(7L, "Gasolina", "Transporte", "2026-03-13", 60.0, MovimientoType.expense),
-            new MovimientoResponse(8L, "Dividendos AAPL", "Inversiones", "2026-03-14", 125.0, MovimientoType.income)
-    ));
+    private final MovimientoRepository movimientoRepository;
+    private final CuentaGestorRepository cuentaGestorRepository;
+    private final DefaultCuentaGestorService defaultCuentaGestorService;
+    private final MovimientoCategoriaService movimientoCategoriaService;
+    private final MovimientoMapper movimientoMapper;
 
-    public List<MovimientoResponse> getAll() {
-        return movimientos.stream()
-                .sorted(Comparator.comparing(MovimientoResponse::movement_date).reversed())
+    public MovimientoService(
+            MovimientoRepository movimientoRepository,
+            CuentaGestorRepository cuentaGestorRepository,
+            DefaultCuentaGestorService defaultCuentaGestorService,
+            MovimientoCategoriaService movimientoCategoriaService,
+            MovimientoMapper movimientoMapper
+    ) {
+        this.movimientoRepository = movimientoRepository;
+        this.cuentaGestorRepository = cuentaGestorRepository;
+        this.defaultCuentaGestorService = defaultCuentaGestorService;
+        this.movimientoCategoriaService = movimientoCategoriaService;
+        this.movimientoMapper = movimientoMapper;
+    }
+
+    public List<MovimientoResponse> getAll(String userEmail) {
+        CuentaGestorEntity cuentaGestor = defaultCuentaGestorService.getOrCreateCuentaGestorForUser(userEmail);
+
+        return movimientoRepository.findAllByCuentaGestorIdOrderByFechaDescIdDesc(cuentaGestor.getId()).stream()
+                .map(movimientoMapper::toResponse)
                 .toList();
     }
 
-    public MovimientoResponse create(CreateMovimientoRequest request) {
-        MovimientoResponse movimiento = new MovimientoResponse(
-                idSequence.incrementAndGet(),
-                request.description(),
-                request.category_name(),
-                request.movement_date(),
-                request.amount(),
-                request.movement_type()
-        );
+    public MovimientoResponse create(String userEmail, CreateMovimientoRequest request) {
+        CuentaGestorEntity cuentaGestor = defaultCuentaGestorService.getOrCreateCuentaGestorForUser(userEmail);
+        CategoriaEntity categoria = movimientoCategoriaService.resolveCategoria(request);
 
-        movimientos.add(0, movimiento);
-        return movimiento;
+        MovimientoEntity movimiento = new MovimientoEntity();
+        movimiento.setCuentaGestor(cuentaGestor);
+        movimiento.setCategoria(categoria);
+        movimiento.setDescripcion(request.description().trim());
+        movimiento.setCantidad(BigDecimal.valueOf(request.amount()));
+        movimiento.setFecha(parseMovementDate(request.movement_date()));
+
+        MovimientoEntity saved = movimientoRepository.save(movimiento);
+        recalculateSaldo(cuentaGestor);
+        return movimientoMapper.toResponse(saved);
     }
 
-    public MovimientoResponse update(Long id, CreateMovimientoRequest request) {
-        int index = findIndexById(id);
-        MovimientoResponse updated = new MovimientoResponse(
-                id,
-                request.description(),
-                request.category_name(),
-                request.movement_date(),
-                request.amount(),
-                request.movement_type()
-        );
+    public MovimientoResponse update(String userEmail, Long id, CreateMovimientoRequest request) {
+        CuentaGestorEntity cuentaGestor = defaultCuentaGestorService.getOrCreateCuentaGestorForUser(userEmail);
+        MovimientoEntity movimiento = movimientoRepository.findByIdAndCuentaGestorId(id, cuentaGestor.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado con id " + id));
 
-        movimientos.set(index, updated);
-        return updated;
+        movimiento.setCategoria(movimientoCategoriaService.resolveCategoria(request));
+        movimiento.setDescripcion(request.description().trim());
+        movimiento.setCantidad(BigDecimal.valueOf(request.amount()));
+        movimiento.setFecha(parseMovementDate(request.movement_date()));
+
+        MovimientoEntity updated = movimientoRepository.save(movimiento);
+        recalculateSaldo(cuentaGestor);
+        return movimientoMapper.toResponse(updated);
     }
 
-    public void delete(Long id) {
-        int index = findIndexById(id);
-        movimientos.remove(index);
+    public void delete(String userEmail, Long id) {
+        CuentaGestorEntity cuentaGestor = defaultCuentaGestorService.getOrCreateCuentaGestorForUser(userEmail);
+        MovimientoEntity movimiento = movimientoRepository.findByIdAndCuentaGestorId(id, cuentaGestor.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado con id " + id));
+
+        movimientoRepository.delete(movimiento);
+        recalculateSaldo(cuentaGestor);
     }
 
-    private int findIndexById(Long id) {
-        for (int i = 0; i < movimientos.size(); i++) {
-            if (movimientos.get(i).id().equals(id)) {
-                return i;
-            }
-        }
+    private LocalDateTime parseMovementDate(String movementDate) {
+        return LocalDate.parse(movementDate).atStartOfDay();
+    }
 
-        throw new ResourceNotFoundException("Movimiento no encontrado con id " + id);
+    private void recalculateSaldo(CuentaGestorEntity cuentaGestor) {
+        BigDecimal saldo = movimientoRepository.findAllByCuentaGestorIdOrderByFechaDescIdDesc(cuentaGestor.getId()).stream()
+                .map(movimiento -> {
+                    BigDecimal amount = movimiento.getCantidad();
+                    String tipo = movimiento.getCategoria().getTipoMovimiento().getNombre();
+                    return "ingreso".equalsIgnoreCase(tipo) ? amount : amount.negate();
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        cuentaGestor.setSaldo(saldo);
+        cuentaGestorRepository.save(cuentaGestor);
     }
 }

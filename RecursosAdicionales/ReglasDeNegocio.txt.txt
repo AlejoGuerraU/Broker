@@ -1,0 +1,16 @@
+1. Una persona solo puede tener un perfil de usuario en la aplicación.
+2. Los módulos de gestión de dinero y demo del bróker están separados, pero conviven dentro de la misma aplicación. Las operaciones de un módulo no deben afectar el saldo ni los movimientos del otro.
+3. Al ingresar por primera vez a la aplicación se crean automáticamente la cuenta de gestión de dinero y la cuenta demo del bróker. El usuario puede usar solo una o ambas.
+4. La cuenta demo del bróker debe iniciar con un saldo disponible por defecto de 30.000.000 COP.
+5. Las órdenes del usuario se ejecutan de forma completa; no se permiten ejecuciones parciales.
+6. Cuando una orden de compra se ejecuta, se descuenta del saldo disponible el valor total de la operación.
+7. No se puede ejecutar una orden de compra cuyo valor total supere el saldo disponible para invertir.
+8. El valor del portafolio se calcula con base en el valor actual de las posiciones abiertas más el saldo disponible.
+9. Si el usuario compra más unidades de un activo que ya existe en su portafolio, el rendimiento debe calcularse con el precio promedio de compra ponderado.
+10. El usuario solo puede vender activos que existan en su portafolio.
+11. No se permite vender una cantidad mayor a la disponible en la posición.
+12. Cuando se ejecuta una orden de venta, aumenta el saldo disponible y la posición se reduce o se elimina si la cantidad llega a cero.
+13. El usuario puede reiniciar su cuenta demo. Al hacerlo, se restablece el saldo inicial y se eliminan todas las posiciones abiertas.
+14. No se ejecutan órdenes mientras el mercado esté cerrado. La orden debe quedar pendiente y ejecutarse cuando el mercado abra.
+15. No se permiten órdenes con cantidades menores o iguales a cero.
+16. El rendimiento de una posición se calcula con base en la diferencia entre el precio actual y el precio promedio de compra.
