@@ -22,3 +22,8 @@ export interface OrdenHistorialItem {
   precio: number
   estado: OrdenHistorialEstado
 }
+
+export interface ResumenCuentaBroker {
+  saldoDisponible: number
+  saldoCongelado: number
+}

@@ -19,6 +19,7 @@ interface ModalCuentaProps {
   onClose: () => void
   cuenta: CuentaData
   onSave: (cuenta: CuentaData) => void
+  onSignOut: () => void
 }
 
 const infoFields = [
@@ -28,7 +29,7 @@ const infoFields = [
   { key: 'direccion', label: 'Direccion', icon: 'solar:map-point-linear' },
 ] as const
 
-const Index = ({ isOpen, onClose, cuenta, onSave }: ModalCuentaProps) => {
+const Index = ({ isOpen, onClose, cuenta, onSave, onSignOut }: ModalCuentaProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState(cuenta)
 
@@ -134,10 +135,18 @@ const Index = ({ isOpen, onClose, cuenta, onSave }: ModalCuentaProps) => {
                 titulo='Editar Perfil'
                 onClick={() => setIsEditing(true)}
                 color='#25B161'
-                className='h-12 rounded-2xl text-base text-white sm:col-span-2'
+                className='h-12 rounded-2xl text-base text-white'
                 iconName='solar:pen-2-linear'
               />
             )}
+
+            <Button
+              titulo='Cerrar Sesion'
+              onClick={onSignOut}
+              color='#22272F'
+              className={isEditing ? 'h-12 rounded-2xl text-base' : 'h-12 rounded-2xl text-base'}
+              iconName='solar:logout-2-linear'
+            />
           </div>
         </div>
       </div>

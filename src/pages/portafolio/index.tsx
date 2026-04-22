@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import Cardmetrica from '@/components/moleculas/cardMetrica'
 import { MediumTitle } from '@/components/atoms/heroTitles'
 import ModalAccionPortafolio from '@/components/organismos/modalAccionPortafolio'
 import TableHistorial from '@/components/organismos/tableHistorial'
 import TablePortfolio from '@/components/organismos/tablePortfolio'
-import type { AccionPortafolioItem, OrdenHistorialItem } from '@/types/portafolio'
+import type {
+  AccionPortafolioItem,
+  OrdenHistorialItem,
+  ResumenCuentaBroker,
+} from '@/types/portafolio'
 import Button from '@/components/atoms/button'
 import { getPortfolioData } from '@/services/portafolio'
 
@@ -20,8 +25,13 @@ const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixe
 type VistaTabla = 'acciones' | 'ordenes'
 
 const Index = () => {
+  const { data: session, status } = useSession()
   const [acciones, setAcciones] = useState<AccionPortafolioItem[]>([])
   const [ordenes, setOrdenes] = useState<OrdenHistorialItem[]>([])
+  const [resumenCuenta, setResumenCuenta] = useState<ResumenCuentaBroker>({
+    saldoDisponible: 0,
+    saldoCongelado: 0,
+  })
   const [accionSeleccionada, setAccionSeleccionada] = useState<AccionPortafolioItem | null>(null)
   const [vistaActiva, setVistaActiva] = useState<VistaTabla>('acciones')
   const [isLoading, setIsLoading] = useState(true)
@@ -31,11 +41,30 @@ const Index = () => {
     let isMounted = true
 
     const loadPortfolio = async () => {
+      if (status === 'loading') {
+        return
+      }
+
+      if (status !== 'authenticated') {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+        return
+      }
+
+      if (!session?.accessToken) {
+        if (isMounted) {
+          setError(session?.error || 'Tu sesion con Google existe, pero el backend no pudo validarla.')
+          setIsLoading(false)
+        }
+        return
+      }
+
       try {
         setIsLoading(true)
         setError(null)
 
-        const data = await getPortfolioData()
+        const data = await getPortfolioData(session.accessToken)
 
         if (!isMounted) {
           return
@@ -43,6 +72,7 @@ const Index = () => {
 
         setAcciones(data.acciones)
         setOrdenes(data.ordenes)
+        setResumenCuenta(data.resumenCuenta)
       } catch {
         if (!isMounted) {
           return
@@ -61,7 +91,7 @@ const Index = () => {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [session?.accessToken, session?.error, status])
 
   const resumen = useMemo(() => {
     const valorActual = acciones.reduce((total, accion) => total + accion.cantidad * accion.precioActual, 0)
@@ -78,6 +108,14 @@ const Index = () => {
       variacionDiariaPromedio,
     }
   }, [acciones])
+
+  if (status === 'loading') {
+    return (
+      <div className='flex h-[50vh] items-center justify-center p-4'>
+        <div className='h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary-color)] border-t-transparent' />
+      </div>
+    )
+  }
 
   return (
     <main className='flex flex-1 flex-col gap-5 p-4 sm:gap-6'>
@@ -104,6 +142,12 @@ const Index = () => {
       </div>
 
       <div className='grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4'>
+        <Cardmetrica
+          titulo='Saldo disponible'
+          iconName='solar:wallet-money-linear'
+          textMetrica={formatCurrency(resumenCuenta.saldoDisponible)}
+          color='#4DA3FF'
+        />
         <Cardmetrica
           titulo='Valor actual'
           iconName='streamline:baggage-remix'

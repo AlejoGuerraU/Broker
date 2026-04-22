@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import CardMetrica from '@/components/moleculas/cardMetrica'
 import CardAcciones from '@/components/moleculas/cardAcciones'
 import { MediumTitle } from '@/components/atoms/heroTitles'
@@ -22,6 +23,7 @@ const formatFechaCorta = (fecha: string) =>
   }).format(new Date(fecha))
 
 const Index = () => {
+  const { data: session, status } = useSession()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [movimientos, setMovimientos] = useState<MovimientoItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -105,11 +107,30 @@ const Index = () => {
     let isMounted = true
 
     const loadMovimientos = async () => {
+      if (status === 'loading') {
+        return
+      }
+
+      if (status !== 'authenticated') {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+        return
+      }
+
+      if (!session?.accessToken) {
+        if (isMounted) {
+          setError(session?.error || 'Tu sesion con Google existe, pero el backend no pudo validarla.')
+          setIsLoading(false)
+        }
+        return
+      }
+
       try {
         setIsLoading(true)
         setError(null)
 
-        const data = await getMovimientos()
+        const data = await getMovimientos(session.accessToken)
 
         if (!isMounted) {
           return
@@ -134,7 +155,7 @@ const Index = () => {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [session?.accessToken, session?.error, status])
 
   const handleOpenCreateModal = () => {
     setMovimientoEnEdicion(null)
@@ -151,13 +172,13 @@ const Index = () => {
   const handleDeleteMovimiento = async (movimiento: MovimientoItem) => {
     const shouldDelete = window.confirm(`¿Deseas eliminar el movimiento "${movimiento.descripcion}"?`)
 
-    if (!shouldDelete) {
+    if (!shouldDelete || !session?.accessToken) {
       return
     }
 
     try {
       setError(null)
-      await deleteMovimiento(movimiento.id)
+      await deleteMovimiento(movimiento.id, session.accessToken)
       setMovimientos((currentMovimientos) =>
         currentMovimientos.filter((currentMovimiento) => currentMovimiento.id !== movimiento.id),
       )
@@ -167,11 +188,13 @@ const Index = () => {
   }
 
   const handleSaveMovimiento = async (movimiento: Omit<MovimientoItem, 'id'>) => {
+    if (!session?.accessToken) return
+
     try {
       setError(null)
 
       if (movimientoEnEdicion) {
-        const movimientoActualizado = await updateMovimiento(movimientoEnEdicion.id, movimiento)
+        const movimientoActualizado = await updateMovimiento(movimientoEnEdicion.id, movimiento, session.accessToken)
 
         setMovimientos((currentMovimientos) =>
           currentMovimientos.map((currentMovimiento) =>
@@ -179,7 +202,7 @@ const Index = () => {
           ),
         )
       } else {
-        const nuevoMovimiento = await createMovimiento(movimiento)
+        const nuevoMovimiento = await createMovimiento(movimiento, session.accessToken)
         setMovimientos((currentMovimientos) => [nuevoMovimiento, ...currentMovimientos])
       }
 
@@ -198,6 +221,14 @@ const Index = () => {
   const handleCloseModal = () => {
     setMovimientoEnEdicion(null)
     setIsModalOpen(false)
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className='flex h-[50vh] items-center justify-center p-4'>
+        <div className='h-8 w-8 animate-spin rounded-full border-4 border-[var(--primary-color)] border-t-transparent' />
+      </div>
+    )
   }
 
   return (

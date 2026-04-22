@@ -2,129 +2,85 @@ import {
   mapCreateMovimientoPayload,
   mapMovimiento,
   type CreateMovimientoPayload,
-  type MovimientoApiResponse,
 } from '@/mappers/movimiento'
 import type { MovimientoItem } from '@/types/movimiento'
 
-let movimientosMock: MovimientoApiResponse[] = [
-  {
-    id: 1,
-    description: 'Salario mensual',
-    category_name: 'Salario',
-    movement_date: '2026-02-28',
-    amount: 4500,
-    movement_type: 'income',
-  },
-  {
-    id: 2,
-    description: 'Alquiler',
-    category_name: 'Vivienda',
-    movement_date: '2026-02-28',
-    amount: 1200,
-    movement_type: 'expense',
-  },
-  {
-    id: 3,
-    description: 'Supermercado',
-    category_name: 'Alimentacion',
-    movement_date: '2026-03-04',
-    amount: 320,
-    movement_type: 'expense',
-  },
-  {
-    id: 4,
-    description: 'Freelance diseno web',
-    category_name: 'Freelance',
-    movement_date: '2026-03-07',
-    amount: 850,
-    movement_type: 'income',
-  },
-  {
-    id: 5,
-    description: 'Suscripcion Netflix',
-    category_name: 'Entretenimiento',
-    movement_date: '2026-03-09',
-    amount: 15.99,
-    movement_type: 'expense',
-  },
-  {
-    id: 6,
-    description: 'Electricidad',
-    category_name: 'Servicios',
-    movement_date: '2026-03-11',
-    amount: 85,
-    movement_type: 'expense',
-  },
-  {
-    id: 7,
-    description: 'Gasolina',
-    category_name: 'Transporte',
-    movement_date: '2026-03-13',
-    amount: 60,
-    movement_type: 'expense',
-  },
-  {
-    id: 8,
-    description: 'Dividendos AAPL',
-    category_name: 'Inversiones',
-    movement_date: '2026-03-14',
-    amount: 125,
-    movement_type: 'income',
-  },
-]
+const normalizeBaseUrl = (baseUrl?: string) => {
+  if (!baseUrl) {
+    return 'http://localhost:8080/api'
+  }
 
-const simulateRequest = async <T,>(data: T): Promise<T> =>
-  new Promise((resolve) => {
-    setTimeout(() => resolve(data), 150)
+  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
+}
+
+const backendApiBaseUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL)
+
+const buildBackendUrl = (path: string) => `${backendApiBaseUrl}${path}`
+
+const getAuthHeaders = (token?: string) => ({
+  'Content-Type': 'application/json',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+})
+
+export const getMovimientos = async (token?: string): Promise<MovimientoItem[]> => {
+  const response = await fetch(buildBackendUrl('/movimientos'), {
+    headers: getAuthHeaders(token),
   })
 
-export const getMovimientos = async (): Promise<MovimientoItem[]> => {
-  const response = await simulateRequest(movimientosMock)
-  return response.map(mapMovimiento)
+  if (!response.ok) {
+    throw new Error('No se pudieron obtener los movimientos')
+  }
+
+  const data = await response.json()
+  return data.map(mapMovimiento)
 }
 
 export const createMovimiento = async (
   movimiento: CreateMovimientoPayload,
+  token?: string,
 ): Promise<MovimientoItem> => {
   const payload = mapCreateMovimientoPayload(movimiento)
+  const response = await fetch(buildBackendUrl('/movimientos'), {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
 
-  const nuevoMovimiento: MovimientoApiResponse = {
-    id: Date.now(),
-    description: payload.description,
-    category_name: payload.category_name,
-    movement_date: payload.movement_date,
-    amount: payload.amount,
-    movement_type: payload.movement_type,
+  if (!response.ok) {
+    throw new Error('No se pudo crear el movimiento')
   }
 
-  movimientosMock = [nuevoMovimiento, ...movimientosMock]
-
-  const response = await simulateRequest(nuevoMovimiento)
-  return mapMovimiento(response)
+  const data = await response.json()
+  return mapMovimiento(data)
 }
 
 export const updateMovimiento = async (
   id: number,
   movimiento: CreateMovimientoPayload,
+  token?: string,
 ): Promise<MovimientoItem> => {
   const payload = mapCreateMovimientoPayload(movimiento)
+  const response = await fetch(buildBackendUrl(`/movimientos/${id}`), {
+    method: 'PUT',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
 
-  const movimientoActualizado: MovimientoApiResponse = {
-    id,
-    description: payload.description,
-    category_name: payload.category_name,
-    movement_date: payload.movement_date,
-    amount: payload.amount,
-    movement_type: payload.movement_type,
+  if (!response.ok) {
+    throw new Error('No se pudo actualizar el movimiento')
   }
 
-  movimientosMock = movimientosMock.map((item) => (item.id === id ? movimientoActualizado : item))
-
-  const response = await simulateRequest(movimientoActualizado)
-  return mapMovimiento(response)
+  const data = await response.json()
+  return mapMovimiento(data)
 }
 
-export const deleteMovimiento = async (id: number): Promise<void> => {
-  movimientosMock = movimientosMock.filter((item) => item.id !== id)
-  await simulateRequest(undefined)
+export const deleteMovimiento = async (id: number, token?: string): Promise<void> => {
+  const response = await fetch(buildBackendUrl(`/movimientos/${id}`), {
+    method: 'DELETE',
+    headers: getAuthHeaders(token),
+  })
+
+  if (!response.ok) {
+    throw new Error('No se pudo eliminar el movimiento')
+  }
 }
