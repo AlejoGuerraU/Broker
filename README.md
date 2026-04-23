@@ -1,6 +1,6 @@
 # Broker
 
-Documentacion del estado actual del proyecto a fecha de abril de 2026, actualizada con los cambios registrados hasta el 21 de abril de 2026.
+Documentacion del estado actual del proyecto a fecha de abril de 2026, actualizada con los cambios registrados hasta el 23 de abril de 2026.
 
 ## Resumen
 
@@ -17,7 +17,7 @@ La aplicacion utiliza un esquema de seguridad basado en **JWT** propio generado 
 
 ### Frontend
 
-- Framework: Next.js 15.1.4
+- Framework: Next.js 16.2.1
 - UI: React 19 + Tailwind CSS 4
 - Graficas: Chart.js + react-chartjs-2
 - Autenticacion: NextAuth.js 4.24
@@ -113,8 +113,8 @@ Backend:
 Importante:
 
 - los cambios sobreviven a reinicios siempre que la base de datos se conserve
-- el backend no auto-inicializa schema ni seeds porque `spring.sql.init.mode=never`
-- el esquema y los datos base deben cargarse manualmente
+- el backend permite auto-actualizacion del esquema (`spring.jpa.hibernate.ddl-auto=update`) pero se recomienda `none` en produccion
+- el esquema y los datos base pueden cargarse manualmente usando los scripts en `Backend/src/main/resources/`
 
 ### 3. Invertir
 
@@ -325,55 +325,26 @@ GOOGLE_CLIENT_ID=tu_google_client_id
 GOOGLE_CLIENT_SECRET=tu_google_client_secret
 ```
 
-Notas:
-
-- `NEXT_PUBLIC_BACKEND_API_BASE_URL` conecta el frontend con Spring Boot
-- `NEXTAUTH_SECRET` es necesario para encriptar las cookies de sesion
-- `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` se obtienen de Google Cloud Console
-
 ### Backend
 
-Configuracion actual en `Backend/src/main/resources/application.properties`:
-
-```properties
-server.port=8080
-app.cors.allowed-origin=http://localhost:3000
-spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/broker_db?...}
-spring.datasource.username=${DB_USERNAME:root}
-spring.datasource.password=${DB_PASSWORD:root}
-spring.jpa.hibernate.ddl-auto=none
-spring.sql.init.mode=never
-
-# Seguridad
-app.jwt.secret=${JWT_SECRET:clave_secreta_para_firmar_tokens}
-app.jwt.expiration-ms=86400000
-google.client-id=${GOOGLE_CLIENT_ID:tu_google_client_id}
-
-# Mercado
-alpha.vantage.api-key=${ALPHA_VANTAGE_API_KEY:}
-```
-
-Variables de entorno opcionales del backend:
+Variables de entorno (locales o Railway):
 
 ```env
-DB_URL=jdbc:mysql://localhost:3306/broker_db?useSSL=false&serverTimezone=America/Bogota&allowPublicKeyRetrieval=true
-DB_USERNAME=root
-DB_PASSWORD=root
+MYSQLHOST=localhost
+MYSQLPORT=3306
+MYSQLDATABASE=broker_db
+MYSQLUSER=root
+MYSQLPASSWORD=root
+JWT_SECRET=tu_secreto_para_tokens
+GOOGLE_CLIENT_ID=tu_google_client_id
 ALPHA_VANTAGE_API_KEY=tu_api_key
 ```
-
-Notas:
-
-- si no defines las variables de entorno de base de datos, Spring usa los valores por defecto indicados arriba
-- si no defines `ALPHA_VANTAGE_API_KEY`, el modulo de mercado seguira funcionando usando el respaldo persistido o el respaldo local minimo
-- la base `broker_db` debe existir antes de levantar el backend
-- el delay del job de ordenes pendientes se puede configurar con `broker.orders.pending-processor-delay-ms` (por defecto `60000` ms)
 
 ## Como ejecutar el proyecto
 
 ### 1. Preparar la base de datos
 
-Antes de levantar el backend, ejecuta en MySQL en este orden:
+Antes de levantar el backend localmente, ejecuta en MySQL en este orden:
 
 ```text
 Backend/src/main/resources/schema.sql
@@ -381,11 +352,6 @@ Backend/src/main/resources/data.sql
 Backend/src/main/resources/seed_movimientos_demo.sql
 Backend/src/main/resources/seed_portafolio_demo.sql
 ```
-
-- `schema.sql`: crea la base de datos y las tablas
-- `data.sql`: inserta catalogos base (tipos de orden, operacion, estado, etc.)
-- `seed_movimientos_demo.sql`: inserta movimientos demo
-- `seed_portafolio_demo.sql`: inserta activos, posiciones y ordenes demo del portafolio
 
 ### 2. Backend
 
@@ -415,6 +381,24 @@ Frontend disponible en:
 ```text
 http://localhost:3000
 ```
+
+## Despliegue en Railway
+
+El proyecto está configurado para desplegarse en **Railway** usando el `Dockerfile` ubicado en la raíz del repositorio.
+
+### Pasos para el despliegue:
+
+1. Sube el repositorio a GitHub.
+2. Crea un nuevo proyecto en Railway y conecta el repositorio.
+3. Railway detectará automáticamente el archivo `railway.json` y el `Dockerfile`.
+4. Configura las variables de entorno mencionadas anteriormente en el panel de Railway.
+5. Asegúrate de que el servicio de MySQL en Railway tenga las tablas creadas (puedes usar `spring.jpa.hibernate.ddl-auto=update` para la primera ejecución o cargar los scripts manualmente).
+
+### Configuración del Dockerfile:
+El `Dockerfile` utiliza una construcción multietapa:
+- **Build**: Usa Maven con Java 21 para compilar el backend.
+- **Runtime**: Usa JRE 21 para ejecutar el JAR resultante.
+- Expone el puerto `8080` y utiliza la variable `${PORT}` proporcionada por Railway.
 
 ## Esquema de base de datos
 
