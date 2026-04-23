@@ -1,3 +1,5 @@
+-- Active: 1776977995130@@shortline.proxy.rlwy.net@25240@railway
+-- Active: 1776977995130@@shortline.proxy.rlwy.net@25240@railwayxy.rlwy.net@25240@railwayxy.rlwy.net@25240@railwayxy.rlwy.net@25240@railwayxy.rlwy.net@25240@mysql
 CREATE DATABASE IF NOT EXISTS broker_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
