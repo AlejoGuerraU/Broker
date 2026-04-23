@@ -31,7 +31,8 @@ public class PortfolioMapper {
                 orden.getFechaCreacion().toLocalDate().toString(),
                 orden.getActivo().getSimbolo(),
                 mapOrderType(orden.getTipoOperacion().getNombre()),
-                orden.getCantidad().intValue(),
+                orden.getTipoOrden().getNombre(),
+                orden.getCantidad().doubleValue(),
                 resolveUnitPrice(orden).doubleValue(),
                 mapOrderStatus(orden.getEstadoOrden().getNombre())
         );
@@ -79,6 +80,10 @@ public class PortfolioMapper {
 
         if ("pendiente".equalsIgnoreCase(status)) {
             return OrderStatus.pending;
+        }
+
+        if ("rechazada".equalsIgnoreCase(status)) {
+            return OrderStatus.rejected;
         }
 
         return OrderStatus.cancelled;

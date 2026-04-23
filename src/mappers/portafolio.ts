@@ -2,6 +2,7 @@ import type {
   AccionPortafolioItem,
   OrdenHistorialEstado,
   OrdenHistorialItem,
+  OrdenHistorialTipoOrden,
   OrdenHistorialTipo,
 } from '@/types/portafolio'
 
@@ -21,13 +22,18 @@ export interface PortfolioOrderApiResponse {
   created_at: string
   asset_symbol: string
   order_type: 'buy' | 'sell'
+  order_style: 'mercado' | 'limite'
   quantity: number
   unit_price: number
-  status: 'filled' | 'pending' | 'cancelled'
+  status: 'filled' | 'pending' | 'cancelled' | 'rejected'
 }
 
 const mapOrderType = (orderType: PortfolioOrderApiResponse['order_type']): OrdenHistorialTipo =>
   orderType === 'buy' ? 'compra' : 'venta'
+
+const mapOrderStyle = (
+  orderStyle: PortfolioOrderApiResponse['order_style'],
+): OrdenHistorialTipoOrden => (orderStyle === 'limite' ? 'limite' : 'mercado')
 
 const mapOrderStatus = (status: PortfolioOrderApiResponse['status']): OrdenHistorialEstado => {
   switch (status) {
@@ -37,6 +43,8 @@ const mapOrderStatus = (status: PortfolioOrderApiResponse['status']): OrdenHisto
       return 'pendiente'
     case 'cancelled':
       return 'cancelada'
+    case 'rejected':
+      return 'rechazada'
     default:
       return 'pendiente'
   }
@@ -62,6 +70,7 @@ export const mapPortfolioOrder = (
   fecha: order.created_at,
   activo: order.asset_symbol,
   tipo: mapOrderType(order.order_type),
+  tipoOrden: mapOrderStyle(order.order_style),
   cantidad: order.quantity,
   precio: order.unit_price,
   estado: mapOrderStatus(order.status),

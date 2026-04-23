@@ -36,7 +36,7 @@ public class DefaultCuentaBrokerService {
     public CuentaBrokerEntity getOrCreateCuentaBrokerForUser(String email) {
         PersonaEntity persona = PersonaService.DEFAULT_EMAIL.equals(email) 
                 ? personaService.getOrCreateDemoPersona() 
-                : personaService.getByEmail(email);
+                : personaService.getOrCreateByEmail(email);
 
         return cuentaBrokerRepository.findByPersonaIdAndTipoCuenta(persona.getId(), CuentaBrokerEntity.TipoCuenta.demo)
                 .orElseGet(() -> createDefaultCuentaBroker(persona));

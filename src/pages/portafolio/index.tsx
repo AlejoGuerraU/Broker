@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react'
 import Cardmetrica from '@/components/moleculas/cardMetrica'
 import { MediumTitle } from '@/components/atoms/heroTitles'
 import ModalAccionPortafolio from '@/components/organismos/modalAccionPortafolio'
+import ModalGestionOrden from '@/components/organismos/modalGestionOrden'
 import TableHistorial from '@/components/organismos/tableHistorial'
 import TablePortfolio from '@/components/organismos/tablePortfolio'
 import type {
@@ -11,7 +12,7 @@ import type {
   ResumenCuentaBroker,
 } from '@/types/portafolio'
 import Button from '@/components/atoms/button'
-import { getPortfolioData } from '@/services/portafolio'
+import { cancelPortfolioOrder, getPortfolioData, updatePortfolioOrder } from '@/services/portafolio'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-CO', {
@@ -33,9 +34,13 @@ const Index = () => {
     saldoCongelado: 0,
   })
   const [accionSeleccionada, setAccionSeleccionada] = useState<AccionPortafolioItem | null>(null)
+  const [ordenSeleccionada, setOrdenSeleccionada] = useState<OrdenHistorialItem | null>(null)
   const [vistaActiva, setVistaActiva] = useState<VistaTabla>('acciones')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [orderActionMessage, setOrderActionMessage] = useState<string | null>(null)
+  const [orderActionError, setOrderActionError] = useState<string | null>(null)
+  const [pendingOrderId, setPendingOrderId] = useState<number | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -92,6 +97,78 @@ const Index = () => {
       isMounted = false
     }
   }, [session?.accessToken, session?.error, status])
+
+  const refreshPortfolio = async () => {
+    if (!session?.accessToken) {
+      throw new Error('No hay sesion valida para consultar el portafolio.')
+    }
+
+    const data = await getPortfolioData(session.accessToken)
+    setAcciones(data.acciones)
+    setOrdenes(data.ordenes)
+    setResumenCuenta(data.resumenCuenta)
+  }
+
+  const handleOpenOrderModal = (orden: OrdenHistorialItem) => {
+    setOrderActionError(null)
+    setOrderActionMessage(null)
+    setOrdenSeleccionada(orden)
+  }
+
+  const handleCloseOrderModal = () => {
+    if (pendingOrderId !== null) {
+      return
+    }
+
+    setOrdenSeleccionada(null)
+    setOrderActionError(null)
+  }
+
+  const handleSubmitEditOrder = async (payload: { cantidad: number; precioLimite?: number }) => {
+    if (!ordenSeleccionada || !session?.accessToken) {
+      return
+    }
+
+    try {
+      setPendingOrderId(ordenSeleccionada.id)
+      setOrderActionError(null)
+      const response = await updatePortfolioOrder(ordenSeleccionada.id, payload, session.accessToken)
+      setOrderActionMessage(response.mensaje)
+      setOrdenSeleccionada(null)
+      await refreshPortfolio()
+    } catch (editError) {
+      setOrderActionError(editError instanceof Error ? editError.message : 'No se pudo modificar la orden.')
+    } finally {
+      setPendingOrderId(null)
+    }
+  }
+
+  const handleCancelOrder = async (orden: OrdenHistorialItem) => {
+    if (!session?.accessToken) {
+      return
+    }
+
+    const confirmed = window.confirm(`¿Cancelar la orden pendiente de ${orden.tipo} para ${orden.activo}?`)
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setPendingOrderId(orden.id)
+      setOrderActionError(null)
+      setOrderActionMessage(null)
+      const response = await cancelPortfolioOrder(orden.id, session.accessToken)
+      if (ordenSeleccionada?.id === orden.id) {
+        setOrdenSeleccionada(null)
+      }
+      setOrderActionMessage(response.mensaje)
+      await refreshPortfolio()
+    } catch (cancelError) {
+      setOrderActionError(cancelError instanceof Error ? cancelError.message : 'No se pudo cancelar la orden.')
+    } finally {
+      setPendingOrderId(null)
+    }
+  }
 
   const resumen = useMemo(() => {
     const valorActual = acciones.reduce((total, accion) => total + accion.cantidad * accion.precioActual, 0)
@@ -174,6 +251,18 @@ const Index = () => {
         </div>
       ) : null}
 
+      {orderActionMessage ? (
+        <div className='rounded-2xl border border-[#244E35] bg-[#13241A] px-4 py-3 text-sm text-[#B8F3CB]'>
+          {orderActionMessage}
+        </div>
+      ) : null}
+
+      {orderActionError ? (
+        <div className='rounded-2xl border border-[#4A2323] bg-[#2A1717] px-4 py-3 text-sm text-[#FFB3B1]'>
+          {orderActionError}
+        </div>
+      ) : null}
+
       {isLoading ? (
         <div className='rounded-[24px] border border-[var(--bg-border)] bg-[var(--card-color)] px-5 py-12 text-center text-sm text-[var(--bg-muted)]'>
           Cargando informacion del portafolio...
@@ -181,12 +270,26 @@ const Index = () => {
       ) : vistaActiva === 'acciones' ? (
         <TablePortfolio acciones={acciones} onSelect={setAccionSeleccionada} />
       ) : (
-        <TableHistorial ordenes={ordenes} />
+        <TableHistorial
+          ordenes={ordenes}
+          pendingActionId={pendingOrderId}
+          onSelect={handleOpenOrderModal}
+        />
       )}
       <ModalAccionPortafolio
         isOpen={!isLoading && vistaActiva === 'acciones' && Boolean(accionSeleccionada)}
         accion={accionSeleccionada}
         onClose={() => setAccionSeleccionada(null)}
+      />
+      <ModalGestionOrden
+        key={ordenSeleccionada?.id ?? 'sin-orden'}
+        isOpen={vistaActiva === 'ordenes' && Boolean(ordenSeleccionada)}
+        orden={ordenSeleccionada}
+        onClose={handleCloseOrderModal}
+        onSubmitEdit={handleSubmitEditOrder}
+        onCancelOrder={handleCancelOrder}
+        error={orderActionError}
+        isSubmitting={pendingOrderId === ordenSeleccionada?.id}
       />
     </main>
   )

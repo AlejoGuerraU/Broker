@@ -2,7 +2,7 @@ import React from 'react'
 import Input from '@/components/atoms/input'
 import Button from '@/components/atoms/button'
 import { BigText, SubTexto, SubTitle } from '@/components/atoms/heroTitles'
-import type { TipoOperacionBroker } from '@/types/market'
+import type { TipoOperacionBroker, TipoOrdenBroker } from '@/types/market'
 
 interface CardComprarProps {
   nombreAccion?: string
@@ -10,12 +10,17 @@ interface CardComprarProps {
   precio?: string
   variacion?: number
   cantidad?: string
+  tipoOrden?: TipoOrdenBroker
+  precioLimite?: string
   onCantidadChange?: (value: string) => void
+  onPrecioLimiteChange?: (value: string) => void
   tipoOperacion?: TipoOperacionBroker
   onTipoOperacionChange?: (value: TipoOperacionBroker) => void
+  onTipoOrdenChange?: (value: TipoOrdenBroker) => void
   onSubmit?: () => void
   isSubmitting?: boolean
   isRefreshingPrice?: boolean
+  marketStatusLabel?: string
   mensaje?: string | null
   error?: string | null
 }
@@ -26,12 +31,17 @@ const Index = ({
   precio = '$0.00',
   variacion = 0,
   cantidad = '',
+  tipoOrden = 'mercado',
+  precioLimite = '',
   onCantidadChange,
+  onPrecioLimiteChange,
   tipoOperacion = 'compra',
   onTipoOperacionChange,
+  onTipoOrdenChange,
   onSubmit,
   isSubmitting = false,
   isRefreshingPrice = false,
+  marketStatusLabel,
   mensaje,
   error,
 }: CardComprarProps) => {
@@ -43,7 +53,7 @@ const Index = ({
       <div className='space-y-2'>
         <SubTitle text='Operar acciones' />
         <div className='space-y-1'>
-          <SubTexto text={`${nombreAccion} · ${simbolo}`} className='break-words text-[var(--bg-muted)]' />
+          <SubTexto text={`${nombreAccion} - ${simbolo}`} className='break-words text-[var(--bg-muted)]' />
           <BigText text={precio} className='font-semibold text-[var(--bg-text)]' />
           {isRefreshingPrice ? (
             <SubTexto text='Actualizando precio...' className='text-[var(--bg-muted)]' />
@@ -80,6 +90,40 @@ const Index = ({
         value={cantidad}
         onChange={(event) => onCantidadChange?.(event.target.value)}
       />
+
+      <div className='grid grid-cols-2 gap-2'>
+        <Button
+          titulo='Mercado'
+          color={tipoOrden === 'mercado' ? '#4DA3FF' : '#171B21'}
+          textColor='#E6EBF0'
+          className={tipoOrden === 'mercado' ? 'border-transparent' : ''}
+          onClick={() => onTipoOrdenChange?.('mercado')}
+        />
+        <Button
+          titulo='Limite'
+          color={tipoOrden === 'limite' ? '#F0A63A' : '#171B21'}
+          textColor='#E6EBF0'
+          className={tipoOrden === 'limite' ? 'border-transparent' : ''}
+          onClick={() => onTipoOrdenChange?.('limite')}
+        />
+      </div>
+
+      {tipoOrden === 'limite' ? (
+        <Input
+          type='number'
+          placeholder='Precio limite'
+          min='0'
+          step='0.01'
+          value={precioLimite}
+          onChange={(event) => onPrecioLimiteChange?.(event.target.value)}
+        />
+      ) : null}
+
+      <div className='rounded-xl border border-[var(--bg-border)] bg-[#10141A] px-3 py-3 text-sm text-[var(--bg-muted)]'>
+        {tipoOrden === 'mercado'
+          ? marketStatusLabel ?? 'La orden tomara el precio actual del activo.'
+          : 'La orden limite usa el precio que indiques como referencia para crear la orden.'}
+      </div>
 
       {mensaje ? (
         <div className='rounded-xl border border-[#244E35] bg-[#13241A] px-3 py-2 text-sm text-[#B8F3CB]'>

@@ -38,6 +38,18 @@ public class PersonaService {
                 .orElseThrow(() -> new ResourceNotFoundException("No existe una persona con el correo " + email));
     }
 
+    public PersonaEntity getOrCreateByEmail(String email) {
+        return personaRepository.findByCorreoIgnoreCase(email)
+                .orElseGet(() -> {
+                    TipoDocumentoEntity tipoDocumento = tipoDocumentoRepository.findByNombreIgnoreCase("CC")
+                            .orElseThrow(() -> new ResourceNotFoundException("No existe el tipo de documento CC en la base de datos"));
+                    String normalizedEmail = email == null ? DEFAULT_EMAIL : email.trim().toLowerCase();
+                    String nombre = buildDefaultName(normalizedEmail);
+                    String numeroDocumento = buildDefaultDocument(normalizedEmail);
+                    return createPersona(tipoDocumento, nombre, normalizedEmail, numeroDocumento, null);
+                });
+    }
+
     public PersonaEntity getOrCreateByGoogle(String googleSub, String email, String nombre) {
         return personaRepository.findByGoogleSub(googleSub)
                 .orElseGet(() -> {
@@ -69,5 +81,21 @@ public class PersonaService {
         
         PersonaEntity saved = personaRepository.save(persona);
         return saved;
+    }
+
+    private String buildDefaultName(String email) {
+        int separatorIndex = email.indexOf('@');
+        String alias = separatorIndex > 0 ? email.substring(0, separatorIndex) : "broker";
+        return "Usuario " + alias;
+    }
+
+    private String buildDefaultDocument(String email) {
+        String digitsOnly = email.replaceAll("\\D", "");
+
+        if (digitsOnly.length() >= 10) {
+            return digitsOnly.substring(0, 10);
+        }
+
+        return String.format("%010d", Math.abs(email.hashCode()) % 1_000_000_000L);
     }
 }

@@ -36,7 +36,7 @@ public class DefaultCuentaGestorService {
     public CuentaGestorEntity getOrCreateCuentaGestorForUser(String email) {
         PersonaEntity persona = PersonaService.DEFAULT_EMAIL.equals(email)
                 ? personaService.getOrCreateDemoPersona()
-                : personaService.getByEmail(email);
+                : personaService.getOrCreateByEmail(email);
 
         return cuentaGestorRepository.findByPersonaId(persona.getId())
                 .orElseGet(() -> createDefaultCuentaGestor(persona));

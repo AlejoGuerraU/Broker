@@ -5,7 +5,8 @@ public record PortfolioOrderResponse(
         String created_at,
         String asset_symbol,
         OrderType order_type,
-        Integer quantity,
+        String order_style,
+        Double quantity,
         Double unit_price,
         OrderStatus status
 ) {

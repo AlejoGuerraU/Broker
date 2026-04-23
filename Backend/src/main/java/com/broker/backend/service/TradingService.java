@@ -4,6 +4,7 @@ import com.broker.backend.exception.BusinessException;
 import com.broker.backend.exception.ResourceNotFoundException;
 import com.broker.backend.model.market.CreateOrderRequest;
 import com.broker.backend.model.market.CreateOrderResponse;
+import com.broker.backend.model.market.UpdateOrderRequest;
 import com.broker.backend.persistence.entity.ActivoEntity;
 import com.broker.backend.persistence.entity.CuentaBrokerEntity;
 import com.broker.backend.persistence.entity.EstadoOrdenEntity;
@@ -82,8 +83,10 @@ public class TradingService {
 
         if (isBuy(tipoOperacion)) {
             validateBuyBalance(cuentaBroker, valorTotal);
-        } else {
+        } else if (marketOpen) {
             validateSellPosition(cuentaBroker, activo, cantidad);
+        } else {
+            validatePendingSellAvailability(cuentaBroker, activo, cantidad, null);
         }
 
         OrdenEntity orden = new OrdenEntity();
@@ -103,19 +106,67 @@ public class TradingService {
 
         OrdenEntity savedOrder = ordenRepository.save(orden);
 
-        return new CreateOrderResponse(
-                savedOrder.getId(),
-                activo.getSimbolo(),
-                tipoOperacion.getNombre(),
-                tipoOrden.getNombre(),
-                savedOrder.getEstadoOrden().getNombre(),
-                cantidad.doubleValue(),
-                savedOrder.getPrecioReferencia().doubleValue(),
-                savedOrder.getPrecioEjecucion() != null ? savedOrder.getPrecioEjecucion().doubleValue() : null,
-                savedOrder.getValorTotal() != null ? savedOrder.getValorTotal().doubleValue() : null,
-                cuentaBroker.getSaldoDisponible().doubleValue(),
-                cuentaBroker.getSaldoCongelado().doubleValue(),
-                buildMessage(savedOrder.getEstadoOrden().getNombre(), tipoOperacion.getNombre(), activo.getSimbolo())
+        return buildOrderResponse(
+                savedOrder,
+                cuentaBroker,
+                buildCreateMessage(savedOrder.getEstadoOrden().getNombre(), tipoOperacion.getNombre(), activo.getSimbolo())
+        );
+    }
+
+    public CreateOrderResponse updatePendingOrder(String userEmail, Long orderId, UpdateOrderRequest request) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+        OrdenEntity orden = getOrderForUser(cuentaBroker, orderId);
+
+        validatePendingStatus(orden);
+
+        ActivoEntity activo = marketService.getOrRefreshAsset(orden.getActivo().getSimbolo());
+        BigDecimal nuevaCantidad = scaleQuantity(request.cantidad());
+        BigDecimal nuevoPrecioReferencia = resolveReferencePrice(request, activo, orden.getTipoOrden());
+        BigDecimal nuevoValorTotal = calculateTotal(nuevaCantidad, nuevoPrecioReferencia);
+
+        if (isBuy(orden.getTipoOperacion())) {
+            adjustReservedBalanceForPendingBuy(cuentaBroker, orden, nuevoValorTotal);
+        } else {
+            validatePendingSellAvailability(cuentaBroker, activo, nuevaCantidad, orden.getId());
+        }
+
+        orden.setActivo(activo);
+        orden.setCantidad(nuevaCantidad);
+        orden.setPrecioReferencia(nuevoPrecioReferencia);
+        orden.setValorTotal(nuevoValorTotal);
+        orden.setPrecioEjecucion(null);
+        orden.setFechaEjecucion(null);
+
+        OrdenEntity savedOrder = ordenRepository.save(orden);
+
+        return buildOrderResponse(
+                savedOrder,
+                cuentaBroker,
+                "La orden pendiente de " + savedOrder.getTipoOperacion().getNombre() + " para " + activo.getSimbolo() + " fue actualizada"
+        );
+    }
+
+    public CreateOrderResponse cancelPendingOrder(String userEmail, Long orderId) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+        OrdenEntity orden = getOrderForUser(cuentaBroker, orderId);
+
+        validatePendingStatus(orden);
+
+        if (isBuy(orden.getTipoOperacion())) {
+            BigDecimal reservedTotal = getReservedTotal(orden);
+            cuentaBroker.setSaldoCongelado(maxZero(cuentaBroker.getSaldoCongelado().subtract(reservedTotal)));
+            cuentaBroker.setSaldoDisponible(cuentaBroker.getSaldoDisponible().add(reservedTotal));
+        }
+
+        orden.setEstadoOrden(resolveEstadoOrden("cancelada"));
+        orden.setFechaEjecucion(LocalDateTime.now());
+
+        OrdenEntity savedOrder = ordenRepository.save(orden);
+
+        return buildOrderResponse(
+                savedOrder,
+                cuentaBroker,
+                "La orden pendiente de " + savedOrder.getTipoOperacion().getNombre() + " para " + savedOrder.getActivo().getSimbolo() + " fue cancelada"
         );
     }
 
@@ -327,6 +378,25 @@ public class TradingService {
         }
     }
 
+    private void validatePendingSellAvailability(
+            CuentaBrokerEntity cuentaBroker,
+            ActivoEntity activo,
+            BigDecimal cantidad,
+            Long excludedOrderId
+    ) {
+        PosicionEntity posicion = posicionRepository.findByCuentaBrokerIdAndActivoId(cuentaBroker.getId(), activo.getId())
+                .orElseThrow(() -> new BusinessException("Solo puedes vender activos con posicion abierta"));
+
+        BigDecimal cantidadPendiente = excludedOrderId == null
+                ? ordenRepository.sumPendingSellQuantity(cuentaBroker.getId(), activo.getId())
+                : ordenRepository.sumPendingSellQuantityExcludingOrder(cuentaBroker.getId(), activo.getId(), excludedOrderId);
+
+        BigDecimal disponibleParaPendientes = posicion.getCantidad().subtract(cantidadPendiente);
+        if (disponibleParaPendientes.compareTo(cantidad) < 0) {
+            throw new BusinessException("La cantidad a vender supera la posicion libre despues de otras ordenes pendientes");
+        }
+    }
+
     private TipoOperacionEntity resolveTipoOperacion(String value) {
         String normalized = normalizeRequired(value, "tipo de operacion");
         return tipoOperacionRepository.findByNombreIgnoreCase(normalized)
@@ -350,6 +420,18 @@ public class TradingService {
                 : request.tipoOrden().trim().toLowerCase(Locale.ROOT);
 
         if ("limite".equals(tipoOrden)) {
+            if (request.precioLimite() == null || request.precioLimite().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BusinessException("Las ordenes limite requieren un precio limite mayor a cero");
+            }
+
+            return request.precioLimite().setScale(2, RoundingMode.HALF_UP);
+        }
+
+        return activo.getPrecioActual().setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveReferencePrice(UpdateOrderRequest request, ActivoEntity activo, TipoOrdenEntity tipoOrden) {
+        if ("limite".equalsIgnoreCase(tipoOrden.getNombre())) {
             if (request.precioLimite() == null || request.precioLimite().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessException("Las ordenes limite requieren un precio limite mayor a cero");
             }
@@ -402,5 +484,67 @@ public class TradingService {
         }
 
         return "La orden de " + operationType + " para " + symbol + " quedo pendiente por mercado cerrado";
+    }
+
+    private OrdenEntity getOrderForUser(CuentaBrokerEntity cuentaBroker, Long orderId) {
+        return ordenRepository.findByIdAndCuentaBrokerId(orderId, cuentaBroker.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("No existe la orden " + orderId + " para la cuenta actual"));
+    }
+
+    private void validatePendingStatus(OrdenEntity orden) {
+        if (!"pendiente".equalsIgnoreCase(orden.getEstadoOrden().getNombre())) {
+            throw new BusinessException("Solo se pueden modificar o cancelar ordenes con estado pendiente");
+        }
+    }
+
+    private void adjustReservedBalanceForPendingBuy(
+            CuentaBrokerEntity cuentaBroker,
+            OrdenEntity orden,
+            BigDecimal nuevoValorTotal
+    ) {
+        BigDecimal valorReservadoActual = getReservedTotal(orden);
+        BigDecimal diferencia = nuevoValorTotal.subtract(valorReservadoActual);
+
+        if (diferencia.compareTo(BigDecimal.ZERO) > 0) {
+            validateBuyBalance(cuentaBroker, diferencia);
+            cuentaBroker.setSaldoDisponible(cuentaBroker.getSaldoDisponible().subtract(diferencia));
+            cuentaBroker.setSaldoCongelado(cuentaBroker.getSaldoCongelado().add(diferencia));
+            return;
+        }
+
+        if (diferencia.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal liberado = diferencia.abs();
+            cuentaBroker.setSaldoCongelado(maxZero(cuentaBroker.getSaldoCongelado().subtract(liberado)));
+            cuentaBroker.setSaldoDisponible(cuentaBroker.getSaldoDisponible().add(liberado));
+        }
+    }
+
+    private BigDecimal getReservedTotal(OrdenEntity orden) {
+        if (orden.getValorTotal() != null) {
+            return orden.getValorTotal();
+        }
+
+        return calculateTotal(orden.getCantidad(), orden.getPrecioReferencia());
+    }
+
+    private CreateOrderResponse buildOrderResponse(OrdenEntity orden, CuentaBrokerEntity cuentaBroker, String message) {
+        return new CreateOrderResponse(
+                orden.getId(),
+                orden.getActivo().getSimbolo(),
+                orden.getTipoOperacion().getNombre(),
+                orden.getTipoOrden().getNombre(),
+                orden.getEstadoOrden().getNombre(),
+                orden.getCantidad().doubleValue(),
+                orden.getPrecioReferencia().doubleValue(),
+                orden.getPrecioEjecucion() != null ? orden.getPrecioEjecucion().doubleValue() : null,
+                orden.getValorTotal() != null ? orden.getValorTotal().doubleValue() : null,
+                cuentaBroker.getSaldoDisponible().doubleValue(),
+                cuentaBroker.getSaldoCongelado().doubleValue(),
+                message
+        );
+    }
+
+    private String buildCreateMessage(String status, String operationType, String symbol) {
+        return buildMessage(status, operationType, symbol);
     }
 }

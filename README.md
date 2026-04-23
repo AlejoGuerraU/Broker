@@ -9,7 +9,7 @@ Broker es una aplicacion dividida en dos partes:
 - `nexa`: frontend en Next.js para visualizar portafolio, mercado, control de dinero y noticias.
 - `Backend`: API en Spring Boot que expone datos para movimientos, portafolio y mercado.
 
-El proyecto es un ecosistema multi-usuario protegido por **Google Authentication**. Los modulos de movimientos, portafolio e invertir estan conectados al backend Spring como fuente unica de verdad y los datos estan aislados por cuenta de usuario (correo electronico). El mercado se sincroniza desde Alpha Vantage hacia MySQL y, cuando no hay respuesta util del proveedor externo, la aplicacion trabaja con el ultimo estado persistido en base de datos. Las ordenes pendientes se procesan automaticamente mediante un job programado que se ejecuta cada minuto mientras el mercado este abierto.
+El proyecto es un ecosistema multi-usuario protegido por **Google Authentication**. Los modulos de movimientos, portafolio e invertir estan conectados al backend Spring como fuente unica de verdad y los datos estan aislados por cuenta de usuario (correo electronico). El mercado se sincroniza desde Alpha Vantage hacia MySQL y, cuando no hay respuesta util del proveedor externo, la aplicacion trabaja con el ultimo estado persistido en base de datos. El sistema cuenta con un **CRUD completo de ordenes** que permite crear, listar, modificar y cancelar ordenes pendientes. Las ordenes pendientes se procesan automaticamente mediante un job programado que se ejecuta cada minuto mientras el mercado este abierto.
 
 La aplicacion utiliza un esquema de seguridad basado en **JWT** propio generado por el backend tras validar el ID Token de Google proporcionado por el frontend a través de **NextAuth.js**.
 
@@ -48,7 +48,7 @@ Responsabilidades actuales:
 - exponer movimientos financieros con CRUD completo aislados por usuario
 - exponer posiciones y ordenes del portafolio desde base de datos por usuario
 - exponer resumen de saldos de la cuenta broker (disponible y congelado) por usuario
-- crear ordenes de compra y venta vinculadas al usuario autenticado
+- gestionar CRUD de ordenes (crear, listar, modificar y cancelar) vinculadas al usuario autenticado
 - procesar ordenes pendientes automaticamente mediante job programado
 - exponer mercado desde `tbl_activo` y `tbl_historial_precios`
 - sincronizar datos de mercado con Alpha Vantage cuando hay respuesta disponible
@@ -69,8 +69,11 @@ Frontend:
 
 - consume `GET /api/portafolio/positions`
 - consume `GET /api/portafolio/orders`
+- consume `PUT /api/portafolio/orders/{id}` para modificar ordenes pendientes
+- consume `DELETE /api/portafolio/orders/{id}` para cancelar ordenes pendientes
 - calcula valor actual, rendimiento y variacion diaria promedio
 - muestra tabla de acciones y tabla de ordenes
+- permite la gestion directa (edicion/cancelacion) de ordenes pendientes desde la tabla
 - abre modal con detalle de la accion seleccionada
 
 Backend:
@@ -137,6 +140,8 @@ Backend:
 - usa respaldo local persistido cuando el proveedor externo no responde
 - si la base aun no tiene activos, siembra un mercado base minimo para mantener operativa la simulacion
 - expone `POST /api/portafolio/orders` para crear ordenes de compra y venta
+- expone `PUT /api/portafolio/orders/{id}` para actualizar la cantidad o precio de una orden pendiente
+- expone `DELETE /api/portafolio/orders/{id}` para cancelar una orden pendiente y liberar el saldo (si aplica)
 - admite ordenes de tipo `mercado` (precio actual) y tipo `limite` (precio especificado)
 - valida saldo disponible, posicion existente, cantidad y horario de mercado
 - si el mercado esta abierto, la orden se ejecuta inmediatamente y actualiza posicion y saldo
@@ -185,6 +190,8 @@ El backend utiliza un filtro personalizado `JwtAuthFilter` y configuracion de `S
 - `GET /api/portafolio/orders`
 - `GET /api/portafolio/summary`
 - `POST /api/portafolio/orders`
+- `PUT /api/portafolio/orders/{id}`
+- `DELETE /api/portafolio/orders/{id}`
 
 ### Mercado
 
@@ -211,6 +218,26 @@ Request body:
 - `tipoOperacion`: `"compra"` o `"venta"`
 - `tipoOrden`: `"mercado"` (usa precio actual) o `"limite"` (requiere `precioLimite`)
 - `precioLimite`: requerido solo si `tipoOrden` es `"limite"`, debe ser mayor a cero
+
+### PUT /api/portafolio/orders/{id}
+
+Request body:
+
+```json
+{
+  "cantidad": 5,
+  "precioLimite": 155.50
+}
+```
+
+- Permite modificar la cantidad y el precio limite de una orden con estado `pendiente`.
+- Si es una orden de compra, el saldo congelado se ajusta automaticamente.
+
+### DELETE /api/portafolio/orders/{id}
+
+- Cancela una orden con estado `pendiente`.
+- Si es una orden de compra, el saldo congelado se libera y vuelve al saldo disponible.
+- La orden cambia su estado a `cancelada`.
 
 ### GET /api/portafolio/summary
 
@@ -272,6 +299,8 @@ El endpoint `GET /api/market/status` permite ver:
 - el job programado de `TradingService` corre cada minuto e intenta ejecutar las ordenes pendientes cuando el mercado esta abierto
 - si una orden pendiente de compra no tiene saldo suficiente al ejecutarse, se rechaza y se libera el saldo congelado
 - las ordenes limite usan el precio indicado como precio de referencia; las ordenes de mercado usan el precio actual del activo
+- **Modificacion de ordenes**: solo se pueden editar ordenes en estado `pendiente`.
+- **Cancelacion de ordenes**: solo se pueden cancelar ordenes en estado `pendiente`. Al cancelar una compra, el dinero se descongela inmediatamente.
 
 ## Estado de ordenes
 

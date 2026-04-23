@@ -11,13 +11,16 @@ export interface AccionPortafolioItem {
 
 export type OrdenHistorialTipo = 'compra' | 'venta'
 
-export type OrdenHistorialEstado = 'completada' | 'pendiente' | 'cancelada'
+export type OrdenHistorialTipoOrden = 'mercado' | 'limite'
+
+export type OrdenHistorialEstado = 'completada' | 'pendiente' | 'cancelada' | 'rechazada'
 
 export interface OrdenHistorialItem {
   id: number
   fecha: string
   activo: string
   tipo: OrdenHistorialTipo
+  tipoOrden: OrdenHistorialTipoOrden
   cantidad: number
   precio: number
   estado: OrdenHistorialEstado

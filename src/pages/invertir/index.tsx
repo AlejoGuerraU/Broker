@@ -19,6 +19,7 @@ import type {
   DetalleActivoMercado,
   EstadoMercado,
   TipoOperacionBroker,
+  TipoOrdenBroker,
 } from '@/types/market'
 
 const fallbackChartStock: AccionMercadoItem = {
@@ -71,6 +72,8 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [cantidad, setCantidad] = useState('')
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacionBroker>('compra')
+  const [tipoOrden, setTipoOrden] = useState<TipoOrdenBroker>('mercado')
+  const [precioLimite, setPrecioLimite] = useState('')
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
   const [isRefreshingSelectedPrice, setIsRefreshingSelectedPrice] = useState(false)
   const [orderMessage, setOrderMessage] = useState<string | null>(null)
@@ -147,6 +150,8 @@ const Index = () => {
 
   useEffect(() => {
     setCantidad('')
+    setTipoOrden('mercado')
+    setPrecioLimite('')
     setOrderMessage(null)
     setOrderError(null)
   }, [selectedId])
@@ -212,11 +217,29 @@ const Index = () => {
       return
     }
 
+    if (!session?.accessToken) {
+      setOrderMessage(null)
+      setOrderError('Necesitas iniciar sesion nuevamente para crear una orden.')
+      return
+    }
+
     const normalizedCantidad = Number(cantidad)
 
     if (!Number.isFinite(normalizedCantidad) || normalizedCantidad <= 0) {
       setOrderMessage(null)
       setOrderError('Ingresa una cantidad valida mayor a cero.')
+      return
+    }
+
+    const normalizedPrecioLimite =
+      tipoOrden === 'limite' ? Number(precioLimite) : undefined
+
+    if (
+      tipoOrden === 'limite' &&
+      (!Number.isFinite(normalizedPrecioLimite) || normalizedPrecioLimite <= 0)
+    ) {
+      setOrderMessage(null)
+      setOrderError('Ingresa un precio limite valido mayor a cero.')
       return
     }
 
@@ -228,15 +251,20 @@ const Index = () => {
       const detail = await getMarketAssetDetail(accionSeleccionada.simbolo)
       applyAssetDetail(detail)
 
-      const response: CrearOrdenRespuesta = await createPortfolioOrder({
-        simbolo: accionSeleccionada.simbolo,
-        tipoOperacion,
-        cantidad: normalizedCantidad,
-        tipoOrden: 'mercado',
-      }, session?.accessToken)
+      const response: CrearOrdenRespuesta = await createPortfolioOrder(
+        {
+          simbolo: accionSeleccionada.simbolo,
+          tipoOperacion,
+          cantidad: normalizedCantidad,
+          tipoOrden,
+          precioLimite: tipoOrden === 'limite' ? normalizedPrecioLimite : undefined,
+        },
+        session.accessToken,
+      )
 
       setOrderMessage(response.mensaje)
       setCantidad('')
+      setPrecioLimite('')
       await refreshMarket(accionSeleccionada.id)
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : 'No se pudo crear la orden.')
@@ -247,7 +275,7 @@ const Index = () => {
 
   return (
     <div className='space-y-5 p-4 sm:space-y-6'>
-      <MediumTitle text={'Invertir'} className='leading-none' />
+      <MediumTitle text='Invertir' className='leading-none' />
 
       <Carrusel
         titulo='Mas Negociadas'
@@ -258,8 +286,8 @@ const Index = () => {
 
       <div className='flex w-full gap-2 md:w-3/5'>
         <Input
-          type={'text'}
-          placeholder={'Buscar inversion...'}
+          type='text'
+          placeholder='Buscar inversion...'
           value={busqueda}
           onChange={(event) => setBusqueda(event.target.value)}
         />
@@ -279,15 +307,15 @@ const Index = () => {
               className={marketStatus.mercadoAbierto ? 'text-[#B8F3CB]' : 'text-[#F6D38B]'}
             />
             <SubTextoMini
-              text={`Fuente: ${marketStatus.fuente} · Zona: ${marketStatus.zonaHorariaMercado}`}
+              text={`Fuente: ${marketStatus.fuente} - Zona: ${marketStatus.zonaHorariaMercado}`}
               className='text-[var(--bg-muted)]'
             />
           </div>
           <SubTextoMini
             text={
               marketStatus.mercadoAbierto
-                ? 'Las ordenes de mercado pueden ejecutarse inmediatamente.'
-                : 'Las ordenes nuevas quedaran pendientes hasta que exista logica de ejecucion posterior.'
+                ? 'Las ordenes validas pueden ejecutarse inmediatamente.'
+                : 'Las ordenes nuevas quedaran pendientes hasta la apertura del mercado.'
             }
             className='mt-1 text-[var(--bg-muted)]'
           />
@@ -321,7 +349,7 @@ const Index = () => {
                     key={accion.id}
                     type='button'
                     onClick={() => setSelectedId(accion.id)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 sm:px-4 text-left transition ${
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
                       activa
                         ? 'border-[#25B161] bg-[#18241E]'
                         : 'border-[var(--bg-border)] bg-[#171B21] hover:border-white/10 hover:bg-[#1A2027]'
@@ -357,7 +385,11 @@ const Index = () => {
             ) : (
               <div className='rounded-3xl border border-[var(--bg-border)] bg-[#171B21] px-4 py-8 text-center'>
                 <SubTexto
-                  text={marketError ? 'No hay datos de mercado disponibles en este momento.' : 'No hay acciones que coincidan con tu busqueda.'}
+                  text={
+                    marketError
+                      ? 'No hay datos de mercado disponibles en este momento.'
+                      : 'No hay acciones que coincidan con tu busqueda.'
+                  }
                   className='text-[var(--bg-muted)]'
                 />
               </div>
@@ -370,7 +402,11 @@ const Index = () => {
             titulo={`Movimiento de ${accionSeleccionada?.nombre ?? 'mercado'}`}
             descripcion={`Comparativa semanal de ${accionSeleccionada?.simbolo ?? '---'} frente al portafolio`}
             valorActual={accionSeleccionada?.precio ?? '$0.00'}
-            variacion={accionSeleccionada ? `${accionSeleccionada.variacion >= 0 ? '+' : ''}${accionSeleccionada.variacion.toFixed(2)}% hoy` : 'Sin datos'}
+            variacion={
+              accionSeleccionada
+                ? `${accionSeleccionada.variacion >= 0 ? '+' : ''}${accionSeleccionada.variacion.toFixed(2)}% hoy`
+                : 'Sin datos'
+            }
             labels={chartLabels}
             series={seriesSeleccionadas}
             xAxisLabel='Periodo'
@@ -384,12 +420,21 @@ const Index = () => {
             precio={accionSeleccionada?.precio}
             variacion={accionSeleccionada?.variacion}
             cantidad={cantidad}
+            tipoOrden={tipoOrden}
+            precioLimite={precioLimite}
             onCantidadChange={setCantidad}
+            onPrecioLimiteChange={setPrecioLimite}
             tipoOperacion={tipoOperacion}
             onTipoOperacionChange={setTipoOperacion}
+            onTipoOrdenChange={setTipoOrden}
             onSubmit={handleSubmitOrder}
             isSubmitting={isSubmittingOrder}
             isRefreshingPrice={isRefreshingSelectedPrice}
+            marketStatusLabel={
+              marketStatus?.mercadoAbierto
+                ? 'El mercado esta abierto. Si la orden es valida, puede ejecutarse de inmediato.'
+                : 'El mercado esta cerrado. La orden quedara pendiente si supera las validaciones.'
+            }
             mensaje={orderMessage}
             error={orderError}
           />

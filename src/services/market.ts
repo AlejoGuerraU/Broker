@@ -13,6 +13,7 @@ interface MostActiveResponse {
 
 interface BackendErrorResponse {
   error?: string
+  message?: string
 }
 
 const normalizeBaseUrl = (baseUrl?: string) => {
@@ -31,6 +32,16 @@ const getAuthHeaders = (token?: string) => ({
   'Content-Type': 'application/json',
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 })
+
+const parseBackendResponse = async <T>(response: Response): Promise<T | BackendErrorResponse> => {
+  const text = await response.text()
+
+  try {
+    return text ? (JSON.parse(text) as T | BackendErrorResponse) : {}
+  } catch {
+    return {}
+  }
+}
 
 export const getMostActiveStocks = async (): Promise<AccionMercadoItem[]> => {
   const response = await fetch(buildMarketUrl('/market/most-active'))
@@ -58,14 +69,7 @@ export const createPortfolioOrder = async (
     body: JSON.stringify(payload),
   })
 
-  const text = await response.text()
-  let data: any = {}
-  
-  try {
-    data = text ? JSON.parse(text) : {}
-  } catch (error) {
-    console.error('Error parsing JSON from backend:', error)
-  }
+  const data = await parseBackendResponse<CrearOrdenRespuesta>(response)
 
   if (!response.ok) {
     throw new Error(data.error ?? data.message ?? 'No se pudo crear la orden')
@@ -79,13 +83,7 @@ export const getMarketAssetDetail = async (
 ): Promise<DetalleActivoMercado> => {
   const response = await fetch(buildMarketUrl(`/market/assets/${simbolo}`))
 
-  const text = await response.text()
-  let data: any = {}
-  
-  try {
-    data = text ? JSON.parse(text) : {}
-  } catch (error) {
-  }
+  const data = await parseBackendResponse<DetalleActivoMercado>(response)
 
   if (!response.ok) {
     throw new Error(data.error ?? data.message ?? 'No se pudo obtener el detalle del activo')
@@ -97,13 +95,7 @@ export const getMarketAssetDetail = async (
 export const getMarketStatus = async (): Promise<EstadoMercado> => {
   const response = await fetch(buildMarketUrl('/market/status'))
 
-  const text = await response.text()
-  let data: any = {}
-  
-  try {
-    data = text ? JSON.parse(text) : {}
-  } catch (error) {
-  }
+  const data = await parseBackendResponse<EstadoMercado>(response)
 
   if (!response.ok) {
     throw new Error(data.error ?? data.message ?? 'No se pudo obtener el estado del mercado')

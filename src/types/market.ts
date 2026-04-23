@@ -10,12 +10,18 @@ export interface AccionMercadoItem {
 }
 
 export type TipoOperacionBroker = 'compra' | 'venta'
+export type TipoOrdenBroker = 'mercado' | 'limite'
 
 export interface CrearOrdenPayload {
   simbolo: string
   tipoOperacion: TipoOperacionBroker
   cantidad: number
-  tipoOrden?: 'mercado' | 'limite'
+  tipoOrden?: TipoOrdenBroker
+  precioLimite?: number
+}
+
+export interface ActualizarOrdenPayload {
+  cantidad: number
   precioLimite?: number
 }
 

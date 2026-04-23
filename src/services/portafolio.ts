@@ -2,6 +2,7 @@ import {
   mapPortfolioOrder,
   mapPortfolioPosition,
 } from '@/mappers/portafolio'
+import type { CrearOrdenRespuesta, ActualizarOrdenPayload } from '@/types/market'
 import type {
   AccionPortafolioItem,
   OrdenHistorialItem,
@@ -33,7 +34,7 @@ export interface PortfolioData {
 
 export const getPortfolioData = async (token?: string): Promise<PortfolioData> => {
   const headers = getAuthHeaders(token)
-  
+
   const [accionesResponse, ordenesResponse, resumenResponse] = await Promise.all([
     fetch(buildBackendUrl('/portafolio/positions'), { headers }),
     fetch(buildBackendUrl('/portafolio/orders'), { headers }),
@@ -56,4 +57,52 @@ export const getPortfolioData = async (token?: string): Promise<PortfolioData> =
       saldoCongelado: resumenData.frozen_cash ?? 0,
     },
   }
+}
+
+const parseBackendResponse = async (response: Response) => {
+  const text = await response.text()
+
+  try {
+    return text ? JSON.parse(text) : {}
+  } catch {
+    return {}
+  }
+}
+
+export const updatePortfolioOrder = async (
+  orderId: number,
+  payload: ActualizarOrdenPayload,
+  token?: string,
+): Promise<CrearOrdenRespuesta> => {
+  const response = await fetch(buildBackendUrl(`/portafolio/orders/${orderId}`), {
+    method: 'PUT',
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(payload),
+  })
+
+  const data = await parseBackendResponse(response)
+
+  if (!response.ok) {
+    throw new Error(data.error ?? data.message ?? 'No se pudo modificar la orden')
+  }
+
+  return data as CrearOrdenRespuesta
+}
+
+export const cancelPortfolioOrder = async (
+  orderId: number,
+  token?: string,
+): Promise<CrearOrdenRespuesta> => {
+  const response = await fetch(buildBackendUrl(`/portafolio/orders/${orderId}`), {
+    method: 'DELETE',
+    headers: getAuthHeaders(token),
+  })
+
+  const data = await parseBackendResponse(response)
+
+  if (!response.ok) {
+    throw new Error(data.error ?? data.message ?? 'No se pudo cancelar la orden')
+  }
+
+  return data as CrearOrdenRespuesta
 }
