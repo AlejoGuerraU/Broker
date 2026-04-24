@@ -9,8 +9,7 @@ const normalizeBackendApiBaseUrl = (baseUrl?: string) => {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
 }
 
-const backendApiBaseUrl = normalizeBackendApiBaseUrl(process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL)
-
+const backendApiBaseUrl = normalizeBackendApiBaseUrl(process.env.BACKEND_API_BASE_URL)
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
