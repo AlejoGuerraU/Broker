@@ -43,6 +43,11 @@ const parseBackendResponse = async <T>(response: Response): Promise<T | BackendE
   }
 }
 
+const extractErrorMessage = (data: unknown, fallback: string): string => {
+  const err = data as BackendErrorResponse
+  return err?.error ?? err?.message ?? fallback
+}
+
 export const getMostActiveStocks = async (): Promise<AccionMercadoItem[]> => {
   const response = await fetch(buildMarketUrl('/market/most-active'))
 
@@ -72,7 +77,7 @@ export const createPortfolioOrder = async (
   const data = await parseBackendResponse<CrearOrdenRespuesta>(response)
 
   if (!response.ok) {
-    throw new Error(data.error ?? data.message ?? 'No se pudo crear la orden')
+    throw new Error(extractErrorMessage(data, 'No se pudo crear la orden'))
   }
 
   return data as CrearOrdenRespuesta
@@ -86,7 +91,7 @@ export const getMarketAssetDetail = async (
   const data = await parseBackendResponse<DetalleActivoMercado>(response)
 
   if (!response.ok) {
-    throw new Error(data.error ?? data.message ?? 'No se pudo obtener el detalle del activo')
+    throw new Error(extractErrorMessage(data, 'No se pudo obtener el detalle del activo'))
   }
 
   return data as DetalleActivoMercado
@@ -98,7 +103,7 @@ export const getMarketStatus = async (): Promise<EstadoMercado> => {
   const data = await parseBackendResponse<EstadoMercado>(response)
 
   if (!response.ok) {
-    throw new Error(data.error ?? data.message ?? 'No se pudo obtener el estado del mercado')
+    throw new Error(extractErrorMessage(data, 'No se pudo obtener el estado del mercado'))
   }
 
   return data as EstadoMercado
