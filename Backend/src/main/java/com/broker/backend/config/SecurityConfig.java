@@ -15,13 +15,14 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origin:http://localhost:3000}")
+    @Value("${app.cors.allowed-origin:*}")
     private String allowedOrigin;
 
     private final JwtAuthFilter jwtAuthFilter;
@@ -57,10 +58,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(java.util.Arrays.asList(allowedOrigin.split(",")));
+
+        // Usamos allowedOriginPatterns en lugar de allowedOrigins para soportar
+        // wildcards y para que sea compatible con cualquier configuracion de credenciales.
+        // La app usa Bearer tokens (no cookies), por lo que allowCredentials no es necesario.
+        List<String> patterns = Arrays.asList(allowedOrigin.split(","));
+        config.setAllowedOriginPatterns(patterns);
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        config.setExposedHeaders(List.of("Authorization"));
+        // Sin allowCredentials — la app usa Bearer tokens, no cookies de sesion
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);
