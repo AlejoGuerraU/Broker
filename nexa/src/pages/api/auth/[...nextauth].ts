@@ -9,15 +9,52 @@ const normalizeBackendApiBaseUrl = (baseUrl?: string) => {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
 }
 
-const backendApiBaseUrl = normalizeBackendApiBaseUrl(process.env.BACKEND_API_BASE_URL)
+const resolveBackendApiBaseUrl = () =>
+  process.env.BACKEND_API_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL
+
+const resolveGoogleClientId = () =>
+  process.env.GOOGLE_CLIENT_ID_LOCAL || process.env.GOOGLE_CLIENT_ID || ''
+
+const resolveGoogleClientSecret = () =>
+  process.env.GOOGLE_CLIENT_SECRET_LOCAL || process.env.GOOGLE_CLIENT_SECRET || ''
+
+const backendApiBaseUrl = normalizeBackendApiBaseUrl(resolveBackendApiBaseUrl())
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      clientId: resolveGoogleClientId(),
+      clientSecret: resolveGoogleClientSecret(),
     }),
   ],
   callbacks: {
+    async signIn({ account }) {
+      // Si no hay account, es una renovación de sesión existente — se permite.
+      if (!account) return true
+
+      if (!account.id_token) {
+        return '/login?error=NoIdToken'
+      }
+
+      try {
+        const response = await fetch(`${backendApiBaseUrl}/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: account.id_token }),
+        })
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null)
+          const msg = encodeURIComponent(
+            data?.error || data?.message || `El backend rechazo la autenticacion con estado ${response.status}.`
+          )
+          return `/login?error=BackendAuthError&message=${msg}`
+        }
+
+        return true
+      } catch {
+        return '/login?error=BackendUnreachable'
+      }
+    },
     async jwt({ token, account }) {
       if (!account) {
         return token

@@ -10,6 +10,7 @@ const navItems = [
   { id: '/invertir', title: 'Invertir', nameIcon: 'streamline:money-graph-arrow-increase-ascend-growth-up-arrow-stats-graph-right-grow' },
   { id: '/controlador', title: 'Control De Dinero', nameIcon: 'lucide:wallet' },
   { id: '/noticias', title: 'Noticias', nameIcon: 'lucide:newspaper' },
+  { id: '/glosario', title: 'Glosario', nameIcon: 'lucide:book' },
 ]
 
 interface SidebarProps {

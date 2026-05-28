@@ -1,31 +1,26 @@
-# Broker Backend
+# ☕ Broker Backend API
 
-Documentacion del backend Spring Boot del proyecto Broker, actualizada con los cambios realizados el 18 y 19 de abril de 2026.
+API robusta construida con **Spring Boot 3.3.5** y **Java 21**, encargada de la lógica de negocio, persistencia en base de datos MySQL, procesamiento de transacciones financieras, seguridad multiusuario con Google Authentication/JWT y sincronización inteligente de mercado.
 
-## Resumen
+> [!NOTE]
+> Documentación del backend actualizada a **Mayo de 2026**, incorporando las últimas características técnicas implementadas en la plataforma.
 
-El backend de Broker es una API Spring Boot responsable de:
+---
 
-- exponer CRUD de movimientos financieros personales
-- exponer posiciones y ordenes del portafolio demo
-- sincronizar datos de mercado con Alpha Vantage
-- mantener un respaldo persistido local para mercado
-- crear ordenes demo de compra y venta
-- aplicar reglas de negocio sobre saldo, posiciones y horario de mercado
+## 🏗️ Stack Tecnológico
+* **Lenguaje**: Java 21 (LTS)
+* **Framework**: Spring Boot 3.3.5
+* **Seguridad**: Spring Security 6 + JJWT (JSON Web Token)
+* **Persistencia**: Spring Data JPA + Hibernate + MySQL
+* **Planificación**: Spring Task Scheduling (`@Scheduled`)
+* **Cliente REST**: Spring `RestClient` (nativo en Spring 6) para consumo asíncrono de APIs externas
+* **Validación**: `spring-boot-starter-validation` (JSR-380)
 
-La API trabaja sobre MySQL usando Spring Data JPA y hoy es la unica fuente de verdad para los modulos de movimientos, portafolio e invertir.
+---
 
-## Stack tecnico
+## 📂 Estructura del Código
 
-- Java 21
-- Spring Boot 3.3.5
-- Spring Web
-- Spring Data JPA
-- Spring Validation
-- MySQL Connector/J
-- Maven
-
-## Estructura principal
+La estructura de paquetes sigue un diseño limpio por capas:
 
 ```text
 Backend/
@@ -34,273 +29,164 @@ Backend/
 `-- src/
     `-- main/
         |-- java/com/broker/backend/
-        |   |-- config/
-        |   |-- controller/
-        |   |-- exception/
-        |   |-- model/
-        |   |-- persistence/
-        |   `-- service/
+        |   |-- config/          # Seguridad (CORS, JWT, SecurityConfig) y beans globales
+        |   |-- controller/      # API REST Controllers expuestos al frontend
+        |   |-- exception/       # Manejo centralizado de excepciones y respuestas estandarizadas
+        |   |-- model/           # DTOs (Request / Response Records) para transferir datos
+        |   |   |-- market/
+        |   |   |-- movimiento/
+        |   |   `-- portafolio/
+        |   |-- persistence/     # Acceso a datos
+        |   |   |-- entity/      # Entidades JPA (Mapeo relacional de base de datos)
+        |   |   `-- repository/  # Repositorios Spring Data JPA
+        |   `-- service/         # Lógica de negocio core (Servicios transaccionales)
         `-- resources/
-            |-- application.properties
-            |-- schema.sql
-            |-- data.sql
-            |-- seed_movimientos_demo.sql
-            `-- seed_portafolio_demo.sql
+            |-- application.properties    # Variables y configuraciones de Spring
+            |-- schema.sql                # Inicialización DDL de MySQL
+            |-- data.sql                  # Inicialización DML de catálogos
+            |-- seed_movimientos_demo.sql # Datos demo para movimientos personales
+            `-- seed_portafolio_demo.sql  # Datos demo para el portafolio broker
 ```
 
-## Modulos funcionales
+---
 
-### 1. Movimientos
+## ⚙️ Características Técnicas Clave e Implementaciones
 
-Responsabilidad:
+### 🔐 1. Seguridad e Identidad Multiusuario
+El backend está diseñado desde cero como un ecosistema multiusuario aislado y seguro:
+* **Filtro JWT Personalizado**: [JwtAuthFilter](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/config/JwtAuthFilter.java) intercepta cada petición HTTP, valida el encabezado `Authorization: Bearer <token>`, extrae los claims del usuario y establece el contexto de seguridad.
+* **Google OAuth Verification**: El endpoint `/api/auth/google` valida los tokens de identidad recibidos desde el cliente NextAuth directamente contra el proveedor de Google de manera segura.
+* **Aprovisionamiento Automático (Transaccional)**: Al autenticarse un nuevo usuario por primera vez, el backend crea de forma atómica su perfil de persona (`tbl_persona`), su cuenta de gestor financiero (`tbl_cuenta_gestor`) y su cuenta broker demo (`tbl_cuenta_broker`) con un saldo base de **30,000,000 COP**.
+* **Seguridad Declarativa**: Mediante `@AuthenticationPrincipal String userEmail`, los controladores aíslan las consultas en base de datos garantizando que un usuario jamás acceda a los registros de otro.
 
-- administrar ingresos y egresos del modulo de control de dinero
+### 🛡️ 2. Estrategia de Doble Caché para Alpha Vantage (Market Data)
+El backend implementa un doble mecanismo de optimización para proteger la cuota de la API externa de Alpha Vantage:
 
-Capacidades:
-
-- listar movimientos
-- crear movimientos
-- editar movimientos
-- eliminar movimientos
-- recalcular el saldo de la cuenta gestora despues de cada cambio
-
-Persistencia:
-
-- `tbl_movimiento`
-- `tbl_cuenta_gestor`
-- `tbl_categoria`
-
-### 2. Portafolio
-
-Responsabilidad:
-
-- exponer posiciones y ordenes de la cuenta broker demo
-
-Capacidades:
-
-- devolver posiciones desde `tbl_posicion`
-- devolver ordenes desde `tbl_orden`
-- calcular variacion diaria usando `tbl_historial_precios`
-
-Persistencia:
-
-- `tbl_posicion`
-- `tbl_orden`
-- `tbl_historial_precios`
-- `tbl_cuenta_broker`
-
-### 3. Mercado
-
-Responsabilidad:
-
-- servir el listado de acciones disponibles para invertir
-- sincronizar o reutilizar precios de mercado
-
-Capacidades:
-
-- obtener mercado desde Alpha Vantage cuando hay respuesta util
-- persistir activos en `tbl_activo`
-- persistir snapshots de precio en `tbl_historial_precios`
-- usar el ultimo estado persistido cuando el proveedor falla
-- sembrar un respaldo local minimo si la base esta vacia
-- exponer un endpoint de diagnostico de fuente de datos
-
-Persistencia:
-
-- `tbl_activo`
-- `tbl_historial_precios`
-
-### 4. Trading demo
-
-Responsabilidad:
-
-- crear ordenes demo de compra y venta
-
-Capacidades:
-
-- validar saldo disponible en compras
-- validar existencia y cantidad de posicion en ventas
-- ejecutar ordenes inmediatamente si el mercado esta abierto
-- dejar ordenes pendientes si el mercado esta cerrado
-- actualizar saldo disponible y saldo congelado
-- crear o actualizar posiciones con precio promedio ponderado
-
-Persistencia:
-
-- `tbl_orden`
-- `tbl_posicion`
-- `tbl_cuenta_broker`
-
-## Endpoints disponibles
-
-### Movimientos
-
-- `GET /api/movimientos`
-- `POST /api/movimientos`
-- `PUT /api/movimientos/{id}`
-- `DELETE /api/movimientos/{id}`
-
-### Portafolio
-
-- `GET /api/portafolio/positions`
-- `GET /api/portafolio/orders`
-- `POST /api/portafolio/orders`
-
-### Mercado
-
-- `GET /api/market/most-active`
-- `GET /api/market/assets/{symbol}`
-- `GET /api/market/status`
-
-## Flujo actual del mercado
-
-El backend ya no depende de una segunda capa intermedia en frontend para mercado.
-
-Flujo:
-
-1. El frontend llama a `GET /api/market/most-active`.
-2. `MarketService` intenta obtener datos desde Alpha Vantage.
-3. Si el proveedor responde con datos utiles, el backend:
-   - actualiza o crea activos en `tbl_activo`
-   - guarda snapshots de precio en `tbl_historial_precios`
-4. Si el proveedor no responde o no entrega datos validos, el backend:
-   - intenta servir el ultimo estado persistido
-5. Si la base aun no tiene activos persistidos, el backend:
-   - crea automaticamente un conjunto base de acciones para que la app siga operativa
-
-Diagnostico:
-
-- `GET /api/market/status` permite ver si la fuente actual es `alpha_vantage` o `respaldo_local`
-
-## Flujo actual de ordenes
-
-Cuando el frontend envia `POST /api/portafolio/orders`, el backend:
-
-1. resuelve la cuenta broker demo por defecto
-2. resuelve el activo consultando mercado persistido
-3. valida tipo de operacion, tipo de orden y cantidad
-4. calcula precio de referencia y valor total
-5. valida saldo disponible o posicion existente
-6. decide si el mercado esta abierto usando horario de Nueva York
-7. si el mercado esta abierto:
-   - ejecuta la orden
-   - actualiza saldos
-   - actualiza o elimina posiciones
-8. si el mercado esta cerrado:
-   - deja la orden pendiente
-   - congela saldo si la orden es de compra
-
-## Reglas de negocio implementadas
-
-- la cuenta broker demo se crea automaticamente si no existe
-- el saldo inicial demo es de `30.000.000`
-- no se aceptan cantidades menores o iguales a cero
-- no se puede comprar por encima del saldo disponible
-- no se puede vender un activo sin posicion abierta
-- no se puede vender una cantidad superior a la disponible
-- las compras actualizan el precio promedio ponderado
-- las ventas reducen la posicion o la eliminan si llega a cero
-- cuando el mercado esta cerrado, las ordenes quedan pendientes
-
-## Variables de entorno
-
-Variables soportadas:
-
-```env
-DB_URL=jdbc:mysql://localhost:3306/broker_db?useSSL=false&serverTimezone=America/Bogota&allowPublicKeyRetrieval=true
-DB_USERNAME=root
-DB_PASSWORD=root
-ALPHA_VANTAGE_API_KEY=tu_api_key
+```mermaid
+graph TD
+    A[Consulta /fundamentals] --> B{¿Existe en Base de Datos?}
+    B -- Sí --> C{¿Tiene menos de 7 días?}
+    C -- Sí --> D[Retornar desde Base de Datos - Cero API Calls]
+    C -- No --> E{¿Existe en Caché de Memoria < 15m?}
+    B -- No --> E
+    E -- Sí --> F[Retornar desde Memoria]
+    E -- No --> G[Llamar a Alpha Vantage API]
+    G --> H[Guardar en Base de Datos & Memoria]
+    G -- Falla API --> I{¿Existe registro anterior en DB?}
+    I -- Sí --> J[Retornar Respaldo Persistido - Tolerancia a Fallos]
+    I -- No --> K[Lanzar Excepción de Negocio]
 ```
 
-Configuracion actual en `src/main/resources/application.properties`:
+* **Caché en Base de Datos (`tbl_analisis_fundamental_accion`)**: Cuando el cliente solicita el análisis fundamental de un activo, el servicio [FundamentalAnalysisService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/FundamentalAnalysisService.java) valida si existe en base de datos y si su fecha de actualización es menor o igual a **7 días** (`CACHE_DAYS = 7`). Si se cumple, lo sirve directamente desde MySQL.
+* **Caché en Memoria (In-Memory Maps)**: Para mitigar múltiples consultas concurrentes del mismo símbolo en ráfagas de renders, el backend guarda las respuestas en memoria en mapas concurrentes (`ConcurrentHashMap`) con un tiempo de expiración (TTL) de **15 minutos** (`CACHE_TTL_MINUTES = 15`).
+* **Respaldo Local Fijo**: En ausencia de conexión con Alpha Vantage, el sistema expone un sembrado local predefinido en base a Apple, NVIDIA, Tesla, Amazon, Microsoft y Meta. El endpoint `/api/market/status` reporta en tiempo real si el servidor está consumiendo datos en vivo (`alpha_vantage`) o si está operando bajo el `respaldo_local`.
 
+### 📈 3. Motor Transaccional de Trading (Órdenes Market, Limit y Stop)
+El servicio [TradingService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/TradingService.java) administra toda la lógica transaccional de simulación bursátil:
+* **Órdenes de Mercado**: Se ejecutan inmediatamente si el mercado está abierto usando el precio cotizado actual.
+* **Órdenes Límite**: Quedan en estado `pendiente`. Se ejecutan únicamente si el precio de mercado cumple la condición (`compra`: precio actual <= precio límite; `venta`: precio actual >= precio límite).
+* **Órdenes Stop**: Quedan en estado `pendiente`. Actúan bajo un disparador de tendencia (`compra`: precio actual >= precio stop; `venta`: precio actual <= precio stop).
+* **Aislamiento Financiero y Bloqueo de Fondos**:
+  * Al ingresar una orden de compra pendiente, el valor total estimado de la transacción se mueve temporalmente de `saldo_disponible` a `saldo_congelado` en `tbl_cuenta_broker`, evitando que el usuario gaste esos fondos en otras operaciones.
+  * Al ingresar una orden de venta pendiente, se verifica que la cantidad propuesta a vender no supere las unidades de la posición actual restando otras órdenes de venta que ya se encuentren pendientes (`sumPendingSellQuantityExcludingOrder`).
+* **Actualización en Caliente (Edición y Cancelación)**: El backend permite actualizar la cantidad o precio límite de una orden con estado `pendiente`, recalculando e incrementando/liberando el saldo congelado correspondiente en caliente. Al cancelar una orden pendiente, los fondos congelados vuelven de inmediato al saldo disponible.
+* **Reinicio de Simulación**: `/api/portafolio/reset` borra en cascada todas las órdenes y posiciones abiertas vinculadas al usuario, restableciendo el saldo disponible a **30,000,000 COP** y el congelado a **0.00 COP**.
+
+### ⏱️ 4. Scheduler de Ejecución Continua de Órdenes
+* Un job en segundo plano (`processPendingOrdersOnSchedule`) se ejecuta automáticamente cada minuto (`60000ms`).
+* **Validación de Horario**: Antes de evaluar, el servicio verifica si el mercado bursátil de Nueva York está abierto (Lunes a Viernes de 9:30 AM a 4:00 PM EST).
+* **Flujo del Scheduler**:
+  1. Consulta todas las órdenes con estado `pendiente` ordenadas por fecha y ID.
+  2. Obtiene la cotización fresca del activo a través de `MarketService`.
+  3. Evalúa si se cumple el precio de activación (Límite o Stop).
+  4. Ejecuta de forma segura: actualiza saldo, genera el precio promedio ponderado en `tbl_posicion` y actualiza el estado a `ejecutada`.
+  5. En caso de fallar por factores externos (por ejemplo, que el saldo disponible no cubra el spread de variación del mercado al ejecutarse una compra), rechaza de forma transparente la orden (`rechazada`) y devuelve el saldo congelado correspondiente al balance disponible.
+
+---
+
+## 🔗 Endpoints Expuestos de la API
+
+Todos los endpoints (excepto la validación inicial de login) requieren el encabezado `Authorization: Bearer <JWT>`.
+
+### 🔑 Autenticación
+* `POST /api/auth/google` - Intercambia el Google ID Token por el JWT propietario del backend.
+
+### 💰 Movimientos Finanzas Personales
+* `GET /api/movimientos` - Retorna los ingresos y egresos del usuario autenticado.
+* `POST /api/movimientos` - Registra un nuevo ingreso o egreso, actualizando el saldo de la cuenta gestora.
+* `PUT /api/movimientos/{id}` - Modifica un movimiento previo y ajusta el balance.
+* `DELETE /api/movimientos/{id}` - Remueve un movimiento y recalcula el saldo.
+
+### 📊 Portafolio Simulado
+* `GET /api/portafolio/summary` - Obtiene los saldos de la cuenta broker (`saldoDisponible` y `saldoCongelado`).
+* `GET /api/portafolio/positions` - Lista los activos en cartera del usuario autenticado junto con su precio promedio y cotización actual.
+* `GET /api/portafolio/orders` - Retorna el historial de órdenes (ejecutadas, pendientes, canceladas, rechazadas) del usuario.
+* `POST /api/portafolio/orders` - Registra una nueva orden (Market, Limit, Stop).
+* `PUT /api/portafolio/orders/{orderId}` - Edita cantidad o precio de una orden pendiente.
+* `DELETE /api/portafolio/orders/{orderId}` - Cancela una orden pendiente y libera fondos si corresponde.
+* `POST /api/portafolio/reset` - Reinicia la cuenta demo restableciendo el balance base y borrando registros.
+
+### 📈 Mercado y Cotizaciones
+* `GET /api/market/most-active` - Devuelve las cotizaciones más activas (con caché integrado de 15 minutos).
+* `GET /api/market/assets/{symbol}` - Devuelve la cotización y variación de un activo.
+* `GET /api/market/assets/{symbol}/fundamentals` - Retorna métricas fundamentales del activo consultando DB o Alpha Vantage.
+* `GET /api/market/status` - Retorna metadatos de sincronización, la fuente de mercado utilizada y el estado de la API Key.
+
+---
+
+## 🗂️ Mapeo Físico de Base de Datos (JPA Entities)
+
+El backend expone 17 tablas normalizadas en el esquema MySQL:
+* **tbl_analisis_fundamental_accion** (`AnalisisFundamentalAccionEntity`): Tabla nueva para el almacenamiento estructurado de métricas. Cuenta con una clave única por símbolo (`simbolo`) y una relación opcional hacia `tbl_activo`.
+* **tbl_cuenta_broker** (`CuentaBrokerEntity`): Almacena saldos (`saldo_disponible`, `saldo_congelado`) y metadatos de reinicio demo.
+* **tbl_posicion** (`PosicionEntity`): Vincula cuenta y activo para determinar el promedio ponderado de compra.
+* **tbl_orden** (`OrdenEntity`): Controla estados (`tbl_estado_orden`) y tipos de ejecución (`tbl_tipo_orden`).
+
+---
+
+## ⚙️ Variables de Entorno y Configuración Local
+
+### Archivo `application.properties`
 ```properties
 server.port=8080
-app.cors.allowed-origin=http://localhost:3000
+
+# Orígenes Permitidos para CORS
+app.cors.allowed-origin-patterns=http://localhost:3000
+
+# Base de Datos
 spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/broker_db?useSSL=false&serverTimezone=America/Bogota&allowPublicKeyRetrieval=true}
 spring.datasource.username=${DB_USERNAME:root}
 spring.datasource.password=${DB_PASSWORD:root}
+
+# Hibernate DDL
 spring.jpa.hibernate.ddl-auto=none
 spring.sql.init.mode=never
+
+# Seguridad
+jwt.secret=${JWT_SECRET:un_secreto_super_seguro_firmado_con_256_bits_minimo}
+google.client.ids=${GOOGLE_CLIENT_IDS:prod_client_id,local_client_id}
+
+# APIs Externas
 alpha.vantage.api-key=${ALPHA_VANTAGE_API_KEY:}
+
+# Demora de Job Programado (Opcional, por defecto 60 segundos)
+broker.orders.pending-processor-delay-ms=60000
 ```
 
-Notas:
+---
 
-- si no configuras `ALPHA_VANTAGE_API_KEY`, el backend seguira operando con mercado persistido o con el respaldo local minimo
-- `spring.sql.init.mode=never` implica que la inicializacion es manual
+## 🚀 Ejecución en Desarrollo
 
-## Requisitos
+### Requisitos previos
+* **Java SDK 21** configurado.
+* **Maven 3.9+** instalado.
+* Instancia local de **MySQL** en puerto `3306`.
 
-- Java 21
-- Maven 3.9+
-- MySQL disponible
-
-## Como ejecutar
-
-### 1. Preparar la base de datos
-
-Ejecuta en MySQL:
-
-```text
-src/main/resources/schema.sql
-src/main/resources/data.sql
-src/main/resources/seed_movimientos_demo.sql
-src/main/resources/seed_portafolio_demo.sql
-```
-
-### 2. Levantar el backend
-
-Desde `Backend/`:
-
+### Pasos
+1. Ejecute secuencialmente los scripts ubicados en `src/main/resources/` (`schema.sql` -> `data.sql` -> seeds).
+2. Proporcione las variables necesarias en su entorno o configure el valor de desarrollo en `application.properties`.
+3. Inicie el backend ejecutando desde la raíz de `Backend/`:
 ```bash
 mvn spring-boot:run
 ```
-
-La API queda disponible en:
-
-```text
-http://localhost:8080
-```
-
-## CORS
-
-Por defecto se permite el frontend en `http://localhost:3000`.
-
-Si necesitas otro origen:
-
-```properties
-app.cors.allowed-origin=http://localhost:3001
-```
-
-## Tablas principales utilizadas
-
-| Tabla | Uso |
-|---|---|
-| `tbl_persona` | Persona demo |
-| `tbl_cuenta_gestor` | Cuenta del modulo de dinero |
-| `tbl_cuenta_broker` | Cuenta broker demo |
-| `tbl_movimiento` | Ingresos y egresos |
-| `tbl_categoria` | Categoria por tipo de movimiento |
-| `tbl_activo` | Catalogo de activos |
-| `tbl_historial_precios` | Snapshots OHLC |
-| `tbl_posicion` | Posiciones abiertas |
-| `tbl_orden` | Ordenes de compra/venta |
-
-## Limitaciones actuales
-
-- no existe autenticacion
-- no existe multiusuario real
-- la inicializacion de base de datos sigue siendo manual
-- no existe un job programado para refrescar mercado automaticamente
-- las ordenes pendientes aun no se reintentan automaticamente cuando el mercado vuelve a abrir
-- no hay una cobertura completa de pruebas automatizadas para todos los flujos
-
-## Siguientes pasos recomendados
-
-- automatizar schema y seeds en entornos locales
-- agregar scheduler para refresco de mercado durante horario habil
-- agregar proceso para ejecucion de ordenes pendientes
-- extender `GET /api/market/status` con fecha del ultimo snapshot persistido
-- agregar pruebas de servicios criticos como `MarketService` y `TradingService`
+El servidor levantará satisfactoriamente en `http://localhost:8080`.

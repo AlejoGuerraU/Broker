@@ -11,5 +11,7 @@ public interface HistorialPrecioRepository extends JpaRepository<HistorialPrecio
 
     List<HistorialPrecioEntity> findTop2ByActivoIdOrderByFechaDesc(Long activoId);
 
+    List<HistorialPrecioEntity> findTop30ByActivoIdOrderByFechaDesc(Long activoId);
+
     Optional<HistorialPrecioEntity> findByActivoIdAndFecha(Long activoId, LocalDateTime fecha);
 }

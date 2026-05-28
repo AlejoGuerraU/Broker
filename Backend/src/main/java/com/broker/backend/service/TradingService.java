@@ -5,6 +5,7 @@ import com.broker.backend.exception.ResourceNotFoundException;
 import com.broker.backend.model.market.CreateOrderRequest;
 import com.broker.backend.model.market.CreateOrderResponse;
 import com.broker.backend.model.market.UpdateOrderRequest;
+import com.broker.backend.model.portafolio.ResetDemoAccountResponse;
 import com.broker.backend.persistence.entity.ActivoEntity;
 import com.broker.backend.persistence.entity.CuentaBrokerEntity;
 import com.broker.backend.persistence.entity.EstadoOrdenEntity;
@@ -77,13 +78,16 @@ public class TradingService {
         BigDecimal cantidad = scaleQuantity(request.cantidad());
         BigDecimal precioReferencia = resolveReferencePrice(request, activo);
         BigDecimal valorTotal = calculateTotal(cantidad, precioReferencia);
+        BigDecimal precioMercadoActual = getCurrentMarketPrice(activo);
 
         LocalDateTime now = LocalDateTime.now();
         boolean marketOpen = isMarketOpen(now);
+        boolean shouldExecuteImmediately = marketOpen
+                && shouldExecuteOrderNow(tipoOperacion.getNombre(), tipoOrden.getNombre(), precioMercadoActual, precioReferencia);
 
         if (isBuy(tipoOperacion)) {
             validateBuyBalance(cuentaBroker, valorTotal);
-        } else if (marketOpen) {
+        } else if (shouldExecuteImmediately) {
             validateSellPosition(cuentaBroker, activo, cantidad);
         } else {
             validatePendingSellAvailability(cuentaBroker, activo, cantidad, null);
@@ -98,8 +102,10 @@ public class TradingService {
         orden.setPrecioReferencia(precioReferencia);
         orden.setFechaCreacion(now);
 
-        if (marketOpen) {
-            executeOrder(orden, cuentaBroker, activo, cantidad, precioReferencia, valorTotal);
+        if (shouldExecuteImmediately) {
+            BigDecimal executionPrice = resolveExecutionPrice(tipoOrden.getNombre(), precioMercadoActual, precioReferencia);
+            BigDecimal executionTotal = calculateTotal(cantidad, executionPrice);
+            executeOrder(orden, cuentaBroker, activo, cantidad, executionPrice, executionTotal);
         } else {
             markPendingOrder(orden, cuentaBroker, tipoOperacion, valorTotal);
         }
@@ -170,6 +176,29 @@ public class TradingService {
         );
     }
 
+    public ResetDemoAccountResponse resetDemoAccount(String userEmail) {
+        CuentaBrokerEntity cuentaBroker = defaultCuentaBrokerService.getOrCreateCuentaBrokerForUser(userEmail);
+        LocalDateTime now = LocalDateTime.now();
+        int deletedOrders = Math.toIntExact(ordenRepository.countByCuentaBrokerId(cuentaBroker.getId()));
+        ordenRepository.deleteAllByCuentaBrokerId(cuentaBroker.getId());
+        posicionRepository.deleteAllByCuentaBrokerId(cuentaBroker.getId());
+
+        cuentaBroker.setSaldoDisponible(cuentaBroker.getSaldoInicialDemo().setScale(2, RoundingMode.HALF_UP));
+        cuentaBroker.setSaldoCongelado(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        cuentaBroker.setFechaUltimoReinicio(now);
+
+        return new ResetDemoAccountResponse(
+                cuentaBroker.getSaldoDisponible().doubleValue(),
+                cuentaBroker.getSaldoCongelado().doubleValue(),
+                cuentaBroker.getFechaUltimoReinicio().toString(),
+                deletedOrders,
+                deletedOrders == 0
+                        ? "La cuenta demo fue reiniciada y se eliminaron las posiciones abiertas"
+                        : "La cuenta demo fue reiniciada, se eliminaron las posiciones abiertas y "
+                        + deletedOrders + " ordenes del historial"
+        );
+    }
+
     @Scheduled(fixedDelayString = "${broker.orders.pending-processor-delay-ms:60000}")
     public void processPendingOrdersOnSchedule() {
         try {
@@ -217,8 +246,17 @@ public class TradingService {
 
     private void processSinglePendingOrder(OrdenEntity orden) {
         ActivoEntity activoActualizado = marketService.getOrRefreshAsset(orden.getActivo().getSimbolo());
-        BigDecimal executionPrice = activoActualizado.getPrecioActual().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal executionPrice = getCurrentMarketPrice(activoActualizado);
         BigDecimal executionTotal = calculateTotal(orden.getCantidad(), executionPrice);
+
+        if (!shouldExecuteOrderNow(
+                orden.getTipoOperacion().getNombre(),
+                orden.getTipoOrden().getNombre(),
+                executionPrice,
+                orden.getPrecioReferencia()
+        )) {
+            return;
+        }
 
         try {
             if (isBuy(orden.getTipoOperacion())) {
@@ -419,27 +457,32 @@ public class TradingService {
                 ? "mercado"
                 : request.tipoOrden().trim().toLowerCase(Locale.ROOT);
 
-        if ("limite".equals(tipoOrden)) {
+        if ("limite".equals(tipoOrden) || "stop".equals(tipoOrden)) {
             if (request.precioLimite() == null || request.precioLimite().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BusinessException("Las ordenes limite requieren un precio limite mayor a cero");
+                throw new BusinessException(
+                        "Las ordenes " + tipoOrden + " requieren un precio " + tipoOrden + " mayor a cero"
+                );
             }
 
             return request.precioLimite().setScale(2, RoundingMode.HALF_UP);
         }
 
-        return activo.getPrecioActual().setScale(2, RoundingMode.HALF_UP);
+        return getCurrentMarketPrice(activo);
     }
 
     private BigDecimal resolveReferencePrice(UpdateOrderRequest request, ActivoEntity activo, TipoOrdenEntity tipoOrden) {
-        if ("limite".equalsIgnoreCase(tipoOrden.getNombre())) {
+        if ("limite".equalsIgnoreCase(tipoOrden.getNombre()) || "stop".equalsIgnoreCase(tipoOrden.getNombre())) {
             if (request.precioLimite() == null || request.precioLimite().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BusinessException("Las ordenes limite requieren un precio limite mayor a cero");
+                throw new BusinessException(
+                        "Las ordenes " + tipoOrden.getNombre().toLowerCase(Locale.ROOT)
+                                + " requieren un precio " + tipoOrden.getNombre().toLowerCase(Locale.ROOT) + " mayor a cero"
+                );
             }
 
             return request.precioLimite().setScale(2, RoundingMode.HALF_UP);
         }
 
-        return activo.getPrecioActual().setScale(2, RoundingMode.HALF_UP);
+        return getCurrentMarketPrice(activo);
     }
 
     private BigDecimal calculateTotal(BigDecimal cantidad, BigDecimal precio) {
@@ -452,6 +495,46 @@ public class TradingService {
 
     private boolean isBuy(TipoOperacionEntity tipoOperacion) {
         return "compra".equalsIgnoreCase(tipoOperacion.getNombre());
+    }
+
+    private BigDecimal getCurrentMarketPrice(ActivoEntity activo) {
+        return activo.getPrecioActual().setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveExecutionPrice(String orderType, BigDecimal currentMarketPrice, BigDecimal referencePrice) {
+        // Las órdenes límite se ejecutan exactamente al precio de referencia pactado (o mejor).
+        // Las órdenes stop y de mercado se ejecutan al precio de mercado actual.
+        if ("limite".equalsIgnoreCase(orderType)) {
+            return referencePrice;
+        }
+        return currentMarketPrice;
+    }
+
+    private boolean shouldExecuteOrderNow(
+            String operationType,
+            String orderType,
+            BigDecimal currentMarketPrice,
+            BigDecimal referencePrice
+    ) {
+        if ("mercado".equalsIgnoreCase(orderType)) {
+            return true;
+        }
+
+        boolean isBuyOperation = "compra".equalsIgnoreCase(operationType);
+
+        if ("limite".equalsIgnoreCase(orderType)) {
+            return isBuyOperation
+                    ? currentMarketPrice.compareTo(referencePrice) <= 0
+                    : currentMarketPrice.compareTo(referencePrice) >= 0;
+        }
+
+        if ("stop".equalsIgnoreCase(orderType)) {
+            return isBuyOperation
+                    ? currentMarketPrice.compareTo(referencePrice) >= 0
+                    : currentMarketPrice.compareTo(referencePrice) <= 0;
+        }
+
+        throw new BusinessException("No existe la logica de ejecucion para el tipo de orden " + orderType);
     }
 
     private boolean isMarketOpen(LocalDateTime timestamp) {
@@ -483,7 +566,7 @@ public class TradingService {
             return "La orden de " + operationType + " para " + symbol + " fue ejecutada";
         }
 
-        return "La orden de " + operationType + " para " + symbol + " quedo pendiente por mercado cerrado";
+        return "La orden de " + operationType + " para " + symbol + " quedo pendiente hasta cumplir su condicion";
     }
 
     private OrdenEntity getOrderForUser(CuentaBrokerEntity cuentaBroker, Long orderId) {

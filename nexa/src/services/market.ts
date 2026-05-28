@@ -1,9 +1,11 @@
 import type {
   AccionMercadoItem,
+  AnalisisFundamentalMercado,
   CrearOrdenPayload,
   CrearOrdenRespuesta,
   DetalleActivoMercado,
   EstadoMercado,
+  HistorialActivoMercado,
 } from '@/types/market'
 
 interface MostActiveResponse {
@@ -107,4 +109,32 @@ export const getMarketStatus = async (): Promise<EstadoMercado> => {
   }
 
   return data as EstadoMercado
+}
+
+export const getMarketAssetHistory = async (
+  simbolo: string,
+): Promise<HistorialActivoMercado> => {
+  const response = await fetch(buildMarketUrl(`/market/assets/${simbolo}/history`))
+
+  const data = await parseBackendResponse<HistorialActivoMercado>(response)
+
+  if (!response.ok) {
+    throw new Error(extractErrorMessage(data, 'No se pudo obtener el historial del activo'))
+  }
+
+  return data as HistorialActivoMercado
+}
+
+export const getMarketFundamentals = async (
+  simbolo: string,
+): Promise<AnalisisFundamentalMercado> => {
+  const response = await fetch(buildMarketUrl(`/market/assets/${simbolo}/fundamentals`))
+
+  const data = await parseBackendResponse<AnalisisFundamentalMercado>(response)
+
+  if (!response.ok) {
+    throw new Error(extractErrorMessage(data, 'No se pudo obtener el analisis fundamental'))
+  }
+
+  return data as AnalisisFundamentalMercado
 }

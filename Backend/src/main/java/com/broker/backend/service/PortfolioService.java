@@ -69,7 +69,8 @@ public class PortfolioService {
 
         return new PortfolioAccountSummaryResponse(
                 cuentaBroker.getSaldoDisponible().doubleValue(),
-                cuentaBroker.getSaldoCongelado().doubleValue()
+                cuentaBroker.getSaldoCongelado().doubleValue(),
+                cuentaBroker.getFechaUltimoReinicio() != null ? cuentaBroker.getFechaUltimoReinicio().toString() : null
         );
     }
 }

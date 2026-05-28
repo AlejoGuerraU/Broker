@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,14 +33,20 @@ public class AuthService {
     private final JwtProvider jwtProvider;
 
     public AuthService(
-            @Value("${google.client-id}") String clientId,
+            @Value("${google.client-ids}") String clientIds,
             PersonaService personaService,
             DefaultCuentaBrokerService defaultCuentaBrokerService,
             DefaultCuentaGestorService defaultCuentaGestorService,
             JwtProvider jwtProvider
     ) {
+        List<String> audiences = Arrays.stream(clientIds.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+
         this.verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), new GsonFactory())
-                .setAudience(Collections.singletonList(clientId))
+                .setAudience(audiences)
                 .build();
         this.personaService = personaService;
         this.defaultCuentaBrokerService = defaultCuentaBrokerService;

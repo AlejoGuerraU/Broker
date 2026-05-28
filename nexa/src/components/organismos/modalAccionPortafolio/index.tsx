@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react'
 import Button from '@/components/atoms/button'
 import Icon from '@/components/atoms/icon'
 import Input from '@/components/atoms/input'
+import Select from '@/components/atoms/select'
 import { createPortfolioOrder } from '@/services/market'
-import type { TipoOperacionBroker } from '@/types/market'
+import type { TipoOperacionBroker, TipoOrdenBroker } from '@/types/market'
 import type { AccionPortafolioItem } from '@/types/portafolio'
 
 interface ModalAccionPortafolioProps {
@@ -25,6 +26,8 @@ const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixe
 
 const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPortafolioProps) => {
   const [cantidad, setCantidad] = useState('')
+  const [tipoOrden, setTipoOrden] = useState<TipoOrdenBroker>('mercado')
+  const [precioCondicion, setPrecioCondicion] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderMessage, setOrderMessage] = useState<string | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
@@ -32,6 +35,8 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
   useEffect(() => {
     if (isOpen) {
       setCantidad('')
+      setTipoOrden('mercado')
+      setPrecioCondicion('')
       setOrderMessage(null)
       setOrderError(null)
     }
@@ -40,6 +45,19 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
   if (!isOpen || !accion) {
     return null
   }
+
+  const normalizedCantidadOperacion = Number(cantidad)
+  const normalizedPrecioCondicion = Number(precioCondicion)
+  const requiresTriggerPrice = tipoOrden === 'limite' || tipoOrden === 'stop'
+
+  // Backend valida/scalea, pero aquí mostramos un estimado para UX.
+  const precioReferenciaOperacion = requiresTriggerPrice ? normalizedPrecioCondicion : accion.precioActual
+  const hasCantidadOperacion = Number.isFinite(normalizedCantidadOperacion) && normalizedCantidadOperacion > 0
+  const hasPrecioReferenciaOperacion =
+    Number.isFinite(precioReferenciaOperacion) && precioReferenciaOperacion > 0
+
+  const costoOperacion = hasCantidadOperacion && hasPrecioReferenciaOperacion ? normalizedCantidadOperacion * precioReferenciaOperacion : 0
+  const valorActualOperacion = hasCantidadOperacion ? normalizedCantidadOperacion * accion.precioActual : 0
 
   const inversionTotal = accion.cantidad * accion.precioPromedio
   const valorActual = accion.cantidad * accion.precioActual
@@ -50,9 +68,20 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
 
   const handleOrder = async (tipoOperacion: TipoOperacionBroker) => {
     const normalizedCantidad = Number(cantidad)
+    const requiresTriggerPrice = tipoOrden === 'limite' || tipoOrden === 'stop'
+    const normalizedPrecioCondicion = Number(precioCondicion)
 
     if (!Number.isFinite(normalizedCantidad) || normalizedCantidad <= 0) {
       setOrderError('Ingresa una cantidad valida mayor a cero.')
+      setOrderMessage(null)
+      return
+    }
+
+    if (
+      requiresTriggerPrice
+      && (!Number.isFinite(normalizedPrecioCondicion) || normalizedPrecioCondicion <= 0)
+    ) {
+      setOrderError(`Ingresa un precio ${tipoOrden === 'stop' ? 'stop' : 'limite'} valido mayor a cero.`)
       setOrderMessage(null)
       return
     }
@@ -63,11 +92,19 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
 
     try {
       const response = await createPortfolioOrder(
-        { simbolo: accion.simbolo, tipoOperacion, cantidad: normalizedCantidad, tipoOrden: 'mercado' },
+        {
+          simbolo: accion.simbolo,
+          tipoOperacion,
+          cantidad: normalizedCantidad,
+          tipoOrden,
+          precioLimite: requiresTriggerPrice ? normalizedPrecioCondicion : undefined,
+        },
         token,
       )
       setOrderMessage(response.mensaje)
       setCantidad('')
+      setTipoOrden('mercado')
+      setPrecioCondicion('')
       onOrderSuccess?.()
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : 'No se pudo crear la orden.')
@@ -137,6 +174,17 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
             </div>
           </div>
 
+          <div className='mt-4 rounded-2xl border border-[var(--bg-border)] bg-[#10141A] p-4'>
+            <div className='flex items-center justify-between gap-3 text-sm text-[var(--bg-muted)]'>
+              <span>Costo de la operación</span>
+              <span className='font-medium text-[var(--bg-text)]'>{formatCurrency(costoOperacion)}</span>
+            </div>
+            <div className='mt-3 flex items-center justify-between gap-3 text-sm text-[var(--bg-muted)]'>
+              <span>Valor al precio actual</span>
+              <span className='font-medium text-[var(--bg-text)]'>{formatCurrency(valorActualOperacion)}</span>
+            </div>
+          </div>
+
           <div className='mt-4'>
             <Input
               type='number'
@@ -146,6 +194,32 @@ const Index = ({ isOpen, accion, token, onClose, onOrderSuccess }: ModalAccionPo
               value={cantidad}
               onChange={(event) => setCantidad(event.target.value)}
             />
+          </div>
+
+          <div className='mt-3 grid gap-3 sm:grid-cols-2'>
+            <Select
+              value={tipoOrden}
+              onChange={(event) => setTipoOrden(event.target.value as TipoOrdenBroker)}
+              options={[
+                { value: 'mercado', label: 'Orden de mercado' },
+                { value: 'limite', label: 'Orden limite' },
+                { value: 'stop', label: 'Orden stop' },
+              ]}
+            />
+            {tipoOrden === 'limite' || tipoOrden === 'stop' ? (
+              <Input
+                type='number'
+                placeholder={tipoOrden === 'stop' ? 'Precio stop' : 'Precio limite'}
+                min='0'
+                step='0.01'
+                value={precioCondicion}
+                onChange={(event) => setPrecioCondicion(event.target.value)}
+              />
+            ) : (
+              <div className='flex items-center rounded-xl border border-[var(--bg-border)] bg-[#10141A] px-4 text-sm text-[var(--bg-muted)]'>
+                Se usara el precio actual del mercado.
+              </div>
+            )}
           </div>
 
           {orderError ? (

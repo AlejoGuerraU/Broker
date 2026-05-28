@@ -37,7 +37,8 @@ ON DUPLICATE KEY UPDATE nombre = VALUES(nombre);
 
 INSERT INTO tbl_tipo_orden (nombre) VALUES
   ('mercado'),
-  ('limite')
+  ('limite'),
+  ('stop')
 ON DUPLICATE KEY UPDATE nombre = VALUES(nombre);
 
 INSERT INTO tbl_tipo_operacion (nombre) VALUES

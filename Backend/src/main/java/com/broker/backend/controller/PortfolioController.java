@@ -6,6 +6,7 @@ import com.broker.backend.model.market.UpdateOrderRequest;
 import com.broker.backend.model.portafolio.PortfolioAccountSummaryResponse;
 import com.broker.backend.model.portafolio.PortfolioOrderResponse;
 import com.broker.backend.model.portafolio.PortfolioPositionResponse;
+import com.broker.backend.model.portafolio.ResetDemoAccountResponse;
 import com.broker.backend.service.PortfolioService;
 import com.broker.backend.service.TradingService;
 import jakarta.validation.Valid;
@@ -46,6 +47,11 @@ public class PortfolioController {
     @GetMapping("/summary")
     public PortfolioAccountSummaryResponse getAccountSummary(@AuthenticationPrincipal String userEmail) {
         return portfolioService.getAccountSummary(userEmail);
+    }
+
+    @PostMapping("/reset")
+    public ResetDemoAccountResponse resetDemoAccount(@AuthenticationPrincipal String userEmail) {
+        return tradingService.resetDemoAccount(userEmail);
     }
 
     @PostMapping("/orders")

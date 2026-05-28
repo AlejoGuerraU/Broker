@@ -42,7 +42,7 @@ const Index = ({
   const [vista, setVista] = useState<VistaModal>('detalle')
   const [cantidad, setCantidad] = useState(orden ? String(orden.cantidad) : '')
   const [precioLimite, setPrecioLimite] = useState(
-    orden?.tipoOrden === 'limite' ? String(orden.precio) : '',
+    orden?.tipoOrden === 'limite' || orden?.tipoOrden === 'stop' ? String(orden.precio) : '',
   )
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -54,7 +54,7 @@ const Index = ({
 
   const handleStartEdit = () => {
     setCantidad(String(orden.cantidad))
-    setPrecioLimite(orden.tipoOrden === 'limite' ? String(orden.precio) : '')
+    setPrecioLimite(orden.tipoOrden === 'limite' || orden.tipoOrden === 'stop' ? String(orden.precio) : '')
     setValidationError(null)
     setVista('editar')
   }
@@ -67,11 +67,11 @@ const Index = ({
       return
     }
 
-    if (orden.tipoOrden === 'limite') {
+    if (orden.tipoOrden === 'limite' || orden.tipoOrden === 'stop') {
       const normalizedPrecioLimite = Number(precioLimite)
 
       if (!Number.isFinite(normalizedPrecioLimite) || normalizedPrecioLimite <= 0) {
-        setValidationError('Ingresa un precio limite valido mayor a cero.')
+        setValidationError(`Ingresa un precio ${orden.tipoOrden === 'stop' ? 'stop' : 'limite'} valido mayor a cero.`)
         return
       }
 
@@ -142,10 +142,10 @@ const Index = ({
                 onChange={(event) => setCantidad(event.target.value)}
               />
 
-              {orden.tipoOrden === 'limite' ? (
+              {orden.tipoOrden === 'limite' || orden.tipoOrden === 'stop' ? (
                 <Input
                   type='number'
-                  placeholder='Precio limite'
+                  placeholder={orden.tipoOrden === 'stop' ? 'Precio stop' : 'Precio limite'}
                   min='0'
                   step='0.01'
                   value={precioLimite}
@@ -166,6 +166,10 @@ const Index = ({
               <div className='mt-3 flex items-center justify-between gap-3 text-sm text-[var(--bg-muted)]'>
                 <span>Precio</span>
                 <span className='font-medium text-[var(--bg-text)]'>{formatCurrency(orden.precio)}</span>
+              </div>
+              <div className='mt-3 flex items-center justify-between gap-3 text-sm text-[var(--bg-muted)]'>
+                <span>Costo</span>
+                <span className='font-medium text-[var(--bg-text)]'>{formatCurrency(orden.valorTotal)}</span>
               </div>
               {vista === 'cancelar' ? (
                 <div className='mt-4 rounded-xl border border-[#5A2A31] bg-[#2A1418] px-4 py-3 text-sm text-[#FFB3B3]'>

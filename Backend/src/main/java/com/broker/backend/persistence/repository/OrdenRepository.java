@@ -17,6 +17,10 @@ public interface OrdenRepository extends JpaRepository<OrdenEntity, Long> {
 
     Optional<OrdenEntity> findByIdAndCuentaBrokerId(Long id, Long cuentaBrokerId);
 
+    long countByCuentaBrokerId(Long cuentaBrokerId);
+
+    void deleteAllByCuentaBrokerId(Long cuentaBrokerId);
+
     @Query("""
             SELECT COALESCE(SUM(o.cantidad), 0)
             FROM OrdenEntity o

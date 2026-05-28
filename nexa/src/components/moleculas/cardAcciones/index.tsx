@@ -11,6 +11,7 @@ import {
   PointElement,
   Title,
   Tooltip,
+  type ScriptableContext,
   type ChartData,
   type ChartOptions,
 } from 'chart.js'
@@ -40,9 +41,8 @@ interface CardAccionesProps {
   maxY?: number
   showLegend?: boolean
   className?: string
+  valueFormatter?: (value: number) => string
 }
-
-const buildAreaColor = (hexColor: string) => `${hexColor}20`
 
 const Index = ({
   titulo,
@@ -57,7 +57,17 @@ const Index = ({
   maxY,
   showLegend = false,
   className = '',
+  valueFormatter = (value) => value.toString(),
 }: CardAccionesProps) => {
+  const hasData = labels.length > 0 && series.some((serie) => serie.values.length > 0)
+  const allValues = series.flatMap((serie) => serie.values)
+  const computedMin = allValues.length > 0 ? Math.min(...allValues) : undefined
+  const computedMax = allValues.length > 0 ? Math.max(...allValues) : undefined
+  const yPadding =
+    computedMin !== undefined && computedMax !== undefined
+      ? Math.max((computedMax - computedMin) * 0.12, computedMax * 0.015, 1)
+      : undefined
+
   const data: ChartData<'line'> = {
     labels,
     datasets: series.map((serie) => {
@@ -67,12 +77,28 @@ const Index = ({
         label: serie.label,
         data: serie.values,
         borderColor: color,
-        backgroundColor: buildAreaColor(color),
+        backgroundColor: (context: ScriptableContext<'line'>) => {
+          const chart = context.chart
+          const { ctx, chartArea } = chart
+
+          if (!chartArea) {
+            return `${color}20`
+          }
+
+          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+          gradient.addColorStop(0, `${color}55`)
+          gradient.addColorStop(1, `${color}06`)
+          return gradient
+        },
         fill: serie.fill ?? true,
         tension: serie.tension ?? 0.35,
         pointRadius: 0,
-        pointHoverRadius: 4,
-        borderWidth: 2,
+        pointHitRadius: 18,
+        pointHoverRadius: 5,
+        pointHoverBorderWidth: 2,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: '#0B1015',
+        borderWidth: 2.5,
       }
     }),
   }
@@ -101,18 +127,31 @@ const Index = ({
         borderColor: 'rgba(255,255,255,0.08)',
         borderWidth: 1,
         padding: 12,
+        displayColors: showLegend,
+        callbacks: {
+          label: (context) => {
+            const value = context.parsed.y
+            const prefix = context.dataset.label ? `${context.dataset.label}: ` : ''
+            if (typeof value !== 'number') {
+              return `${prefix}N/D`
+            }
+            return `${prefix}${valueFormatter(value)}`
+          },
+        },
       },
     },
     scales: {
       x: {
         grid: {
-          display: false,
+          color: 'rgba(255,255,255,0.04)',
+          drawTicks: false,
         },
         border: {
           display: false,
         },
         ticks: {
           color: '#7D8592',
+          maxRotation: 0,
         },
         title: xAxisLabel
           ? {
@@ -123,8 +162,8 @@ const Index = ({
           : undefined,
       },
       y: {
-        min: minY,
-        max: maxY,
+        min: minY ?? (computedMin !== undefined && yPadding !== undefined ? computedMin - yPadding : undefined),
+        max: maxY ?? (computedMax !== undefined && yPadding !== undefined ? computedMax + yPadding : undefined),
         grid: {
           color: 'rgba(255,255,255,0.06)',
         },
@@ -133,6 +172,7 @@ const Index = ({
         },
         ticks: {
           color: '#7D8592',
+          callback: (value) => valueFormatter(Number(value)),
         },
         title: yAxisLabel
           ? {
@@ -171,7 +211,13 @@ const Index = ({
       </div>
 
       <div className='h-[260px] w-full'>
-        <Line data={data} options={options} />
+        {hasData ? (
+          <Line data={data} options={options} />
+        ) : (
+          <div className='flex h-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#0D1116] px-6 text-center'>
+            <SubTexto text='No hay historial suficiente para graficar este activo.' className='text-[var(--bg-muted)]' />
+          </div>
+        )}
       </div>
     </article>
   )

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import CardNoticias from '@/components/moleculas/cardNoticias'
 import Icon from '@/components/atoms/icon'
 import { HeroTitle, SubTexto } from '@/components/atoms/heroTitles'
@@ -6,13 +6,17 @@ import { HeroTitle, SubTexto } from '@/components/atoms/heroTitles'
 type CategoriaNoticia = 'Todas' | 'Acciones' | 'Cripto' | 'Mundiales'
 
 interface NoticiaItem {
-  id: number
+  id: string
   titulo: string
   descripcion: string
   categoria: Exclude<CategoriaNoticia, 'Todas'>
   fecha: Date
   imagen: string
   enlace: string
+}
+
+interface NoticiaApiItem extends Omit<NoticiaItem, 'fecha'> {
+  fecha: string
 }
 
 const filtros: Array<{ id: CategoriaNoticia; icono: string; descripcion: string }> = [
@@ -22,59 +26,64 @@ const filtros: Array<{ id: CategoriaNoticia; icono: string; descripcion: string 
   { id: 'Mundiales', icono: 'solar:global-linear', descripcion: 'Contexto macro y geopolítico' },
 ]
 
-const noticiasMock: NoticiaItem[] = [
-  {
-    id: 1,
-    titulo: 'NVIDIA y Microsoft lideran la sesion tras nuevos maximos del Nasdaq',
-    descripcion:
-      'Las tecnologicas impulsan el mercado con renovado apetito por inteligencia artificial, mientras los inversores siguen atentos a resultados y guidance del proximo trimestre.',
-    categoria: 'Acciones',
-    fecha: new Date('2026-04-03'),
-    imagen: 'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=1200&q=80',
-    enlace: '#',
-  },
-  {
-    id: 2,
-    titulo: 'Bitcoin recupera impulso y arrastra al alza a las principales altcoins',
-    descripcion:
-      'El mercado cripto vuelve a tomar fuerza gracias a entradas institucionales y una mejora en el sentimiento de riesgo, con ETH y SOL entre los activos mas destacados.',
-    categoria: 'Cripto',
-    fecha: new Date('2026-04-02'),
-    imagen: 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1200&q=80',
-    enlace: '#',
-  },
-  {
-    id: 3,
-    titulo: 'Los mercados globales ajustan expectativas ante nuevas senales de politica monetaria',
-    descripcion:
-      'Bonos, acciones y divisas reaccionan a comentarios recientes de bancos centrales, en una semana marcada por datos de inflacion y empleo en distintas regiones.',
-    categoria: 'Mundiales',
-    fecha: new Date('2026-04-01'),
-    imagen: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80',
-    enlace: '#',
-  },
-  {
-    id: 4,
-    titulo: 'Apple y Amazon concentran el volumen de negociacion en una jornada mixta',
-    descripcion:
-      'Los operadores priorizan nombres defensivos y grandes capitalizaciones mientras esperan nuevos catalizadores para definir la direccion del mercado durante abril.',
-    categoria: 'Acciones',
-    fecha: new Date('2026-03-31'),
-    imagen: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80',
-    enlace: '#',
-  },
-]
-
 const Index = () => {
   const [filtroActivo, setFiltroActivo] = useState<CategoriaNoticia>('Todas')
+  const [noticias, setNoticias] = useState<NoticiaItem[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const cargarNoticias = async () => {
+      try {
+        setCargando(true)
+        setError('')
+
+        const response = await fetch('/api/news/noticias')
+        const payload = (await response.json()) as { data?: NoticiaApiItem[]; error?: string }
+
+        if (!response.ok) {
+          throw new Error(payload.error || 'No fue posible cargar las noticias.')
+        }
+
+        if (!isMounted) {
+          return
+        }
+
+        setNoticias(
+          (payload.data ?? []).map((noticia) => ({
+            ...noticia,
+            fecha: new Date(noticia.fecha),
+          }))
+        )
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setError(error instanceof Error ? error.message : 'No fue posible cargar las noticias.')
+      } finally {
+        if (isMounted) {
+          setCargando(false)
+        }
+      }
+    }
+
+    void cargarNoticias()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const noticiasFiltradas = useMemo(() => {
     if (filtroActivo === 'Todas') {
-      return noticiasMock
+      return noticias
     }
 
-    return noticiasMock.filter((noticia) => noticia.categoria === filtroActivo)
-  }, [filtroActivo])
+    return noticias.filter((noticia) => noticia.categoria === filtroActivo)
+  }, [filtroActivo, noticias])
 
   return (
     <div className='flex flex-col gap-5 p-4 sm:gap-6'>
@@ -137,23 +146,57 @@ const Index = () => {
               {filtroActivo === 'Todas' ? 'Todas las noticias' : `Noticias de ${filtroActivo}`}
             </h2>
             <p className='text-sm text-[var(--bg-muted)]'>
-              {noticiasFiltradas.length} resultado{noticiasFiltradas.length === 1 ? '' : 's'} disponibles
+              {cargando
+                ? 'Cargando noticias...'
+                : `${noticiasFiltradas.length} resultado${noticiasFiltradas.length === 1 ? '' : 's'} disponibles`}
             </p>
           </div>
         </div>
 
         <div className='grid gap-5'>
-          {noticiasFiltradas.map((noticia) => (
-            <CardNoticias
-              key={noticia.id}
-              titulo={noticia.titulo}
-              descripcion={noticia.descripcion}
-              categoria={noticia.categoria}
-              fecha={noticia.fecha}
-              imagen={noticia.imagen}
-              enlace={noticia.enlace}
-            />
-          ))}
+          {cargando &&
+            Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={`skeleton-${index}`}
+                className='overflow-hidden rounded-[28px] border border-[var(--bg-border)] bg-[var(--card-color)] p-5 md:p-6'
+              >
+                <div className='grid gap-5 md:grid-cols-[280px_minmax(0,1fr)]'>
+                  <div className='h-[220px] animate-pulse rounded-[22px] bg-[#171B21]' />
+                  <div className='space-y-4'>
+                    <div className='h-5 w-28 animate-pulse rounded-full bg-[#171B21]' />
+                    <div className='h-10 w-3/4 animate-pulse rounded-2xl bg-[#171B21]' />
+                    <div className='h-20 w-full animate-pulse rounded-2xl bg-[#171B21]' />
+                    <div className='h-5 w-32 animate-pulse rounded-full bg-[#171B21]' />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+          {!cargando && error && (
+            <div className='rounded-[28px] border border-[var(--bg-border)] bg-[var(--card-color)] p-6 text-sm text-[var(--bg-muted)]'>
+              {error}
+            </div>
+          )}
+
+          {!cargando && !error && noticiasFiltradas.length === 0 && (
+            <div className='rounded-[28px] border border-[var(--bg-border)] bg-[var(--card-color)] p-6 text-sm text-[var(--bg-muted)]'>
+              No hay noticias disponibles para esta categoria en este momento.
+            </div>
+          )}
+
+          {!cargando &&
+            !error &&
+            noticiasFiltradas.map((noticia) => (
+              <CardNoticias
+                key={noticia.id}
+                titulo={noticia.titulo}
+                descripcion={noticia.descripcion}
+                categoria={noticia.categoria}
+                fecha={noticia.fecha}
+                imagen={noticia.imagen}
+                enlace={noticia.enlace}
+              />
+            ))}
         </div>
       </section>
     </div>

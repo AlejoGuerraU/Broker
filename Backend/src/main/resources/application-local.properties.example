@@ -1,0 +1,5 @@
+# Copia este archivo como application-local.properties (misma carpeta).
+# NO pongas claves reales aqui: application-local.properties esta en .gitignore.
+
+ALPHA_VANTAGE_API_KEY=tu_clave_alpha_vantage
+FINNHUB_API_KEY=tu_clave_finnhub_opcional

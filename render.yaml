@@ -1,0 +1,85 @@
+# render.yaml — Configuración de despliegue en Render
+# Documentación: https://render.com/docs/blueprint-spec
+#
+# Variables de entorno marcadas con `sync: false` deben configurarse
+# manualmente en el panel de Render (Settings > Environment).
+
+services:
+  # ─────────────────────────────────────────────
+  # Backend — Spring Boot (Docker)
+  # ─────────────────────────────────────────────
+  - type: web
+    name: broker-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Render inyecta PORT automáticamente; Spring Boot lo lee via ${PORT:8080}
+    envVars:
+      # Base de datos (MySQL — usa Render MySQL add-on o externo)
+      - key: DB_URL
+        sync: false  # Ejemplo: jdbc:mysql://<host>:3306/broker_db?useSSL=true&serverTimezone=America/Bogota
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # CORS — dominio exacto del frontend en Render (sin barra al final)
+      # Ejemplo: https://broker-frontend.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # JWT
+      - key: JWT_SECRET
+        sync: false  # Genera con: openssl rand -base64 64
+      - key: JWT_EXPIRATION_MS
+        value: "86400000"
+
+      # APIs de mercado
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+
+      # Google OAuth — Client ID para verificar Google ID Tokens en el backend
+      - key: GOOGLE_CLIENT_IDS
+        sync: false  # Mismo valor que GOOGLE_CLIENT_ID del frontend
+
+  # ─────────────────────────────────────────────
+  # Frontend — Next.js (Node)
+  # ─────────────────────────────────────────────
+  - type: web
+    name: broker-frontend
+    runtime: node
+    rootDir: nexa
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      # URL pública de este servicio frontend en Render — CRÍTICO para NextAuth
+      # Ejemplo: https://broker-frontend.onrender.com
+      - key: NEXTAUTH_URL
+        sync: false
+
+      # Secret de NextAuth — genera con: openssl rand -base64 32
+      - key: NEXTAUTH_SECRET
+        sync: false
+
+      # URL interna del backend (server-side: callbacks de NextAuth)
+      # Usa la URL interna de Render si ambos servicios están en el mismo proyecto:
+      # http://broker-backend:8080/api  (red interna)
+      # O la URL pública: https://broker-backend.onrender.com/api
+      - key: BACKEND_API_BASE_URL
+        sync: false
+
+      # URL pública del backend (client-side: llamadas desde el browser)
+      # DEBE ser la URL pública HTTPS — se fija en build-time
+      - key: NEXT_PUBLIC_BACKEND_API_BASE_URL
+        sync: false
+
+      # Google OAuth
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # APIs de mercado (si se usan desde el frontend)
+      - key: MARKETAUX_API_KEY
+        sync: false

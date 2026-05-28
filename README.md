@@ -1,489 +1,264 @@
-# Broker
+# 📈 Broker Ecosistema Financiero
 
-Documentacion del estado actual del proyecto a fecha de abril de 2026, actualizada con los cambios registrados hasta el 23 de abril de 2026.
+Ecosistema financiero interactivo multiusuario con simulación de inversiones, gestión de finanzas personales, análisis fundamental de activos y noticias del mercado global en tiempo real.
 
-## Resumen
+> [!NOTE]
+> Documentación del estado del proyecto a **Mayo de 2026**, recopilando e integrando las últimas actualizaciones de la plataforma (Stop/Limit Orders, Caching de APIs externas, Análisis Fundamental de activos, optimización de noticias en paralelo, reinicio de cuenta demo y planificador automático).
 
-Broker es una aplicacion dividida en dos partes:
+---
 
-- `nexa`: frontend en Next.js para visualizar portafolio, mercado, control de dinero y noticias.
-- `Backend`: API en Spring Boot que expone datos para movimientos, portafolio y mercado.
+## 🗺️ Arquitectura de la Plataforma
 
-El proyecto es un ecosistema multi-usuario protegido por **Google Authentication**. Los modulos de movimientos, portafolio e invertir estan conectados al backend Spring como fuente unica de verdad y los datos estan aislados por cuenta de usuario (correo electronico). El mercado se sincroniza desde Alpha Vantage hacia MySQL y, cuando no hay respuesta util del proveedor externo, la aplicacion trabaja con el ultimo estado persistido en base de datos. El sistema cuenta con un **CRUD completo de ordenes** que permite crear, listar, modificar y cancelar ordenes pendientes. Las ordenes pendientes se procesan automaticamente mediante un job programado que se ejecuta cada minuto mientras el mercado este abierto.
+El ecosistema se divide en dos componentes independientes que se comunican mediante HTTP REST y están acoplados bajo una única fuente de verdad:
 
-La aplicacion utiliza un esquema de seguridad basado en **JWT** propio generado por el backend tras validar el ID Token de Google proporcionado por el frontend a través de **NextAuth.js**.
-
-## Arquitectura actual
-
-### Frontend
-
-- Framework: Next.js 16.2.1
-- UI: React 19 + Tailwind CSS 4
-- Graficas: Chart.js + react-chartjs-2
-- Autenticacion: NextAuth.js 4.24
-- Iconos: @iconify/react
-- Ubicacion: `nexa/`
-- Puerto esperado: `http://localhost:3000`
-
-Pantallas disponibles:
-
-- `/`: vista inicial simple con fecha
-- `/portafolio`: resumen del portafolio, posiciones y ordenes
-- `/invertir`: listado de acciones, comparativa visual y tarjeta de compra/venta
-- `/controlador`: control de ingresos y egresos con CRUD de movimientos
-- `/noticias`: tablero visual de noticias por categorias
-
-### Backend
-
-- Framework: Spring Boot 3.3.5
-- Java: 21
-- Seguridad: Spring Security + JJWT (JSON Web Token)
-- Persistencia: Spring Data JPA + MySQL
-- Validacion: `spring-boot-starter-validation`
-- Ubicacion: `Backend/`
-- Puerto esperado: `http://localhost:8080`
-
-Responsabilidades actuales:
-
-- exponer movimientos financieros con CRUD completo aislados por usuario
-- exponer posiciones y ordenes del portafolio desde base de datos por usuario
-- exponer resumen de saldos de la cuenta broker (disponible y congelado) por usuario
-- gestionar CRUD de ordenes (crear, listar, modificar y cancelar) vinculadas al usuario autenticado
-- procesar ordenes pendientes automaticamente mediante job programado
-- exponer mercado desde `tbl_activo` y `tbl_historial_precios`
-- sincronizar datos de mercado con Alpha Vantage cuando hay respuesta disponible
-- usar respaldo persistido local cuando el proveedor no responde
-- sembrar un mercado base minimo si la base esta vacia
-- crear automaticamente perfiles de persona y cuentas (broker/gestor) al primer inicio de sesion
-- gestionar autenticacion mediante verificacion de Google ID Tokens y generacion de JWT
-- manejar errores de forma centralizada con respuestas JSON estandarizadas
-- habilitar CORS para el frontend local con soporte para credenciales
-
-## Estado funcional por modulo
-
-### 1. Portafolio
-
-Estado: **funcional con datos persistidos en MySQL**.
-
-Frontend:
-
-- consume `GET /api/portafolio/positions`
-- consume `GET /api/portafolio/orders`
-- consume `PUT /api/portafolio/orders/{id}` para modificar ordenes pendientes
-- consume `DELETE /api/portafolio/orders/{id}` para cancelar ordenes pendientes
-- calcula valor actual, rendimiento y variacion diaria promedio
-- muestra tabla de acciones y tabla de ordenes
-- permite la gestion directa (edicion/cancelacion) de ordenes pendientes desde la tabla
-- abre modal con detalle de la accion seleccionada
-
-Backend:
-
-- responde desde `PortfolioService`
-- resuelve la cuenta broker demo con `DefaultCuentaBrokerService`
-- consulta posiciones desde `PosicionRepository` sobre `tbl_posicion`
-- consulta ordenes desde `OrdenRepository` sobre `tbl_orden`
-- calcula variacion diaria usando los dos ultimos precios de `HistorialPrecioRepository`
-- refresca cotizaciones de los activos en posicion al consultar posiciones
-- expone resumen de cuenta en `GET /api/portafolio/summary` con saldo disponible y congelado
-- usa los datos base cargados por `seed_portafolio_demo.sql`
-
-### 2. Control de dinero
-
-Estado: **funcional con CRUD persistido en MySQL**.
-
-Frontend:
-
-- lista movimientos
-- crea nuevos movimientos
-- edita movimientos existentes
-- elimina movimientos
-- calcula ingresos, egresos y balance
-- construye una grafica acumulada a partir del historial
-
-Backend:
-
-- expone CRUD en `/api/movimientos`
-- usa `MovimientoRepository` sobre `tbl_movimiento`
-- resuelve categorias por tipo con `MovimientoCategoriaService`
-- crea categorias nuevas automaticamente si no existen para el tipo solicitado
-- crea o reutiliza una cuenta gestora demo por defecto con `DefaultCuentaGestorService`
-- recalcula el saldo de la cuenta gestora despues de crear, editar o eliminar un movimiento
-- valida payloads de entrada
-
-Importante:
-
-- los cambios sobreviven a reinicios siempre que la base de datos se conserve
-- el backend permite auto-actualizacion del esquema (`spring.jpa.hibernate.ddl-auto=update`) pero se recomienda `none` en produccion
-- el esquema y los datos base pueden cargarse manualmente usando los scripts en `Backend/src/main/resources/`
-
-### 3. Invertir
-
-Estado: **funcional sobre backend y base de datos**.
-
-Frontend:
-
-- consume `GET /api/market/most-active`
-- consume `POST /api/portafolio/orders`
-- permite buscar acciones por nombre o simbolo
-- dibuja una comparativa visual semanal
-- muestra una tarjeta de operacion para comprar o vender
-- muestra errores reales del backend en vez de ocultarlos con datos mock
-
-Backend:
-
-- expone `GET /api/market/most-active`
-- expone `GET /api/market/assets/{symbol}`
-- expone `GET /api/market/status`
-- sincroniza mercado con Alpha Vantage cuando hay datos disponibles
-- persiste activos en `tbl_activo`
-- persiste snapshots de precio en `tbl_historial_precios`
-- usa respaldo local persistido cuando el proveedor externo no responde
-- si la base aun no tiene activos, siembra un mercado base minimo para mantener operativa la simulacion
-- expone `POST /api/portafolio/orders` para crear ordenes de compra y venta
-- expone `PUT /api/portafolio/orders/{id}` para actualizar la cantidad o precio de una orden pendiente
-- expone `DELETE /api/portafolio/orders/{id}` para cancelar una orden pendiente y liberar el saldo (si aplica)
-- admite ordenes de tipo `mercado` (precio actual) y tipo `limite` (precio especificado)
-- valida saldo disponible, posicion existente, cantidad y horario de mercado
-- si el mercado esta abierto, la orden se ejecuta inmediatamente y actualiza posicion y saldo
-- si el mercado esta cerrado, la orden queda pendiente y se congela el saldo correspondiente
-- procesa ordenes pendientes mediante un job programado cada minuto (`TradingService`)
-- si una orden pendiente no puede ejecutarse al procesarse (saldo insuficiente u otro error), se marca como rechazada y se libera el saldo congelado
-- expone `GET /api/portafolio/summary` para consultar saldo disponible y congelado de la cuenta broker
-
-### 4. Noticias
-
-Estado: **visualmente construido, sin integracion real**.
-
-Actualmente:
-
-- existen filtros por categoria
-- se muestran tarjetas de noticias con imagen, fecha y descripcion
-- el contenido proviene de datos locales
-- no hay consumo de API ni persistencia
-
-## Seguridad y Autenticacion
-
-El sistema implementa un flujo de autenticacion robusto:
-
-1. **Frontend**: El usuario inicia sesion con Google usando `NextAuth.js`.
-2. **Intercambio de Token**: El frontend envia el `id_token` de Google al endpoint `/api/auth/google` del backend.
-3. **Validacion**: El backend verifica la autenticidad del token usando la libreria oficial de Google.
-4. **Sincronizacion**: Si el usuario no existe, se crea su perfil (`tbl_persona`) y sus cuentas demo (`tbl_cuenta_broker` y `tbl_cuenta_gestor`) automaticamente.
-5. **JWT**: El backend genera un JSON Web Token (JWT) propio y lo devuelve al frontend.
-6. **Sesion**: `NextAuth.js` almacena este JWT en la sesion del cliente.
-7. **Peticiones Protegidas**: Todas las peticiones posteriores incluyen el JWT en el header `Authorization: Bearer <token>`.
-
-El backend utiliza un filtro personalizado `JwtAuthFilter` y configuracion de `SecurityConfig` para proteger los endpoints y extraer el contexto del usuario (email) de forma segura.
-
-## API disponible
-
-### Movimientos
-
-- `GET /api/movimientos`
-- `POST /api/movimientos`
-- `PUT /api/movimientos/{id}`
-- `DELETE /api/movimientos/{id}`
-
-### Portafolio
-
-- `GET /api/portafolio/positions`
-- `GET /api/portafolio/orders`
-- `GET /api/portafolio/summary`
-- `POST /api/portafolio/orders`
-- `PUT /api/portafolio/orders/{id}`
-- `DELETE /api/portafolio/orders/{id}`
-
-### Mercado
-
-- `GET /api/market/most-active`
-- `GET /api/market/assets/{symbol}`
-- `GET /api/market/status`
-
-## Contratos de API destacados
-
-### POST /api/portafolio/orders
-
-Request body:
-
-```json
-{
-  "simbolo": "AAPL",
-  "tipoOperacion": "compra",
-  "cantidad": 2,
-  "tipoOrden": "mercado",
-  "precioLimite": null
-}
+```mermaid
+graph TD
+    A[Next.js Frontend: nexa] -- Autenticación de Google --> B[NextAuth.js Client]
+    A -- Header Bearer JWT --> C[Spring Boot Backend]
+    C -- Spring Security + JJWT --> D[API Endpoints]
+    C -- ORM Hibernate --> E[Base de Datos MySQL]
+    C -- Sincronización 15m Cache --> F[Alpha Vantage API]
+    A -- Servidor API Route --> G[Next.js Backend API]
+    G -- 15m Cache + Parallel Fetch --> H[MarketAux API]
 ```
 
-- `tipoOperacion`: `"compra"` o `"venta"`
-- `tipoOrden`: `"mercado"` (usa precio actual) o `"limite"` (requiere `precioLimite`)
-- `precioLimite`: requerido solo si `tipoOrden` es `"limite"`, debe ser mayor a cero
+### 💻 Frontend (`nexa/`)
+* **Framework**: Next.js 16.2.1 (Pages Router)
+* **UI/UX**: React 19, Vanilla CSS 3 + Tailwind CSS 4 para controles fluidos, gráficos y animaciones interactivas.
+* **Sesiones y Seguridad**: NextAuth.js 4.24 con persistencia del JWT propietario del backend.
+* **Componentes**: Gráficos con Chart.js y `react-chartjs-2`, iconos dinámicos con `@iconify/react` y carruseles premium de mercado.
+* **Ruta local**: [http://localhost:3000](http://localhost:3000)
 
-### PUT /api/portafolio/orders/{id}
+### ☕ Backend (`Backend/`)
+* **Framework**: Spring Boot 3.3.5
+* **Runtime**: Java 21
+* **Seguridad**: Spring Security 6 + Filtros JWT (`JwtAuthFilter`) para aislamiento estricto de datos por usuario (correo electrónico).
+* **Persistencia**: Spring Data JPA + MySQL (Driver Connector/J).
+* **Servicios Programados**: Scheduler activo para ejecución continua de órdenes pendientes.
+* **Ruta local**: [http://localhost:8080](http://localhost:8080)
 
-Request body:
+---
 
-```json
-{
-  "cantidad": 5,
-  "precioLimite": 155.50
-}
-```
+## ⚡ Novedades y Características Clave (Mayo 2026)
 
-- Permite modificar la cantidad y el precio limite de una orden con estado `pendiente`.
-- Si es una orden de compra, el saldo congelado se ajusta automaticamente.
+### 1. 🛡️ Sistema de Caché Multicapa para APIs Externas
+Para evitar el consumo excesivo de créditos de las APIs de Alpha Vantage y robustecer la aplicación ante caídas del proveedor, se implementó una estrategia híbrida:
+* **Caché en Base de Datos (Persistente)**: Las consultas del endpoint `GET /api/market/assets/{symbol}/fundamentals` almacenan los datos en la tabla `tbl_analisis_fundamental_accion`. Si un registro existe y se actualizó hace **menos de 7 días**, se retorna de inmediato sin consumir API externa.
+* **Caché en Memoria (Sesión/Transición)**:
+  * El backend almacena cotizaciones individuales (`GLOBAL_QUOTE`) e índices más activos (`TOP_GAINERS_LOSERS`) con un tiempo de vida (TTL) de **15 minutos**.
+  * Las peticiones consecutivas al análisis fundamental de activos usan un caché de mapa de memoria con **15 minutos** de TTL en el servicio [FundamentalAnalysisService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/FundamentalAnalysisService.java).
+* **Respaldo Local (Seeding)**: En caso de ausencia total de API Keys o caída de conexión, la aplicación sembrará un universo de datos fijos (`AAPL`, `NVDA`, `TSLA`, `AMZN`, `MSFT`, `META`) asegurando que el simulador continúe 100% operativo.
 
-### DELETE /api/portafolio/orders/{id}
+### 📊 2. Análisis Fundamental en Tiempo Real
+* Se integró el modal [ModalAnalisisFundamental](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/invertir/index.tsx) en el panel de **Invertir** para proporcionar a los usuarios métricas empresariales avanzadas directamente desde la base de datos o Alpha Vantage:
+  * **Valoración**: Ratio PER (P/E), Forward PER, PEG Ratio, Price-to-Sales (TTM), Price-to-Book.
+  * **Eficiencia**: Margen Operativo, Margen de Utilidad, Retorno de Activos (ROA TTM) y Retorno de Capital (ROE TTM).
+  * **Dividendos**: Pago por acción, Rentabilidad por Dividendo (Dividend Yield), fechas de ex-dividendos.
+  * **Métricas**: EBITDA, EPS (Ganancia por Acción), Valor Libro, Precio Objetivo de Analistas, Máximos y Mínimos de 52 semanas y Medias Móviles (50 y 200 días).
+* Los datos se cargan de manera asíncrona únicamente al abrir el modal para optimizar el rendimiento del frontend.
 
-- Cancela una orden con estado `pendiente`.
-- Si es una orden de compra, el saldo congelado se libera y vuelve al saldo disponible.
-- La orden cambia su estado a `cancelada`.
+### 💸 3. CRUD Completo de Órdenes (Stop, Limit y Market)
+* **Tipos de Órdenes Soportados**:
+  * `mercado`: Ejecutada de inmediato si el mercado está abierto usando el precio actual.
+  * `limite`: Compra cuando el precio cae por debajo del valor indicado; vende cuando sube por encima de él.
+  * `stop`: Compra cuando el precio cruza al alza la barrera indicada (Trigger); vende cuando cae por debajo del límite de Stop.
+* **Aislamiento Financiero**:
+  * Al crear una orden de compra pendiente, el dinero requerido se resta de `saldoDisponible` y se almacena en `saldoCongelado`, impidiendo compras dobles.
+  * Al crear una orden de venta pendiente, se realiza una comprobación para asegurar que la cantidad a vender no supera la cantidad libre de la posición actual (restando otras ventas pendientes ya activas mediante `sumPendingSellQuantity`).
+* **Edición y Cancelación**: Los usuarios pueden modificar (precio/cantidad) o cancelar órdenes con estado `pendiente` directamente desde la pestaña de órdenes. Al cancelar una compra pendiente, el saldo congelado se descongela e integra de inmediato al disponible.
+* **Reinicio de Cuenta Demo**: Se habilitó el botón **Reiniciar demo** en la pantalla de portafolio para restaurar el saldo inicial ficticio (30,000,000 COP), vaciar el historial de órdenes y remover posiciones abiertas tras una confirmación del usuario.
 
-### GET /api/portafolio/summary
+### ⏱️ 4. Procesamiento Automático con Scheduler
+* El backend cuenta con un job programado que corre en segundo plano cada minuto ([TradingService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/TradingService.java)).
+* Si el mercado financiero está abierto (lunes a viernes, 9:30 AM a 4:00 PM hora de Nueva York), el scheduler evalúa todas las órdenes con estado `pendiente`.
+* Si se cumplen las condiciones límite/stop, las ejecuta de forma transparente: realiza transacciones de saldos, genera promedios ponderados y actualiza posiciones en la base de datos.
+* Si una orden de compra ya no cuenta con saldo disponible suficiente en la cuenta en el momento de procesarse, el scheduler la marca como `rechazada` y libera de inmediato los fondos congelados correspondientes.
 
-Response:
+### 📰 5. Optimización del Feed de Noticias
+* **Paginación en Paralelo**: Dado que la suscripción gratuita de la API de MarketAux limita a 3 artículos por petición, la API route de Next.js ([noticias.ts](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/api/news/noticias.ts)) ahora realiza **6 peticiones concurrentes en paralelo** (páginas 1 a 6) para consolidar hasta 18 artículos simultáneos.
+* **Filtrado y Robustez**: Remoción automática de artículos duplicados (basado en UUID/URL) y clasificación inteligente en categorías (`Acciones`, `Cripto`, `Mundiales`).
+* **Caché en Servidor**: Las noticias se guardan en un caché temporal del servidor Next.js durante **15 minutos**. En caso de agotarse las llamadas o fallar la API principal, el sistema devuelve automáticamente el feed cached sin afectar la experiencia del usuario.
 
-```json
-{
-  "available_cash": 25000000.00,
-  "frozen_cash": 5000000.00
-}
-```
+---
 
-## Flujo actual entre aplicaciones
+## 🗂️ Módulos de la Aplicación y Estado de Implementación
 
-1. El usuario navega en `nexa`.
-2. La pantalla de portafolio consulta el backend Spring y obtiene posiciones y ordenes reales desde MySQL.
-3. Al consultar posiciones, el backend refresca automaticamente las cotizaciones de los activos en posicion.
-4. La pantalla de control de dinero consulta el backend Spring y persiste movimientos en MySQL.
-5. La pantalla de invertir consulta solo al backend Spring para listar acciones y crear ordenes.
-6. El backend intenta sincronizar mercado con Alpha Vantage.
-7. Si Alpha Vantage responde, actualiza `tbl_activo` y `tbl_historial_precios`.
-8. Si Alpha Vantage no responde o no entrega datos utiles, el backend sirve el ultimo estado persistido.
-9. Si la base esta vacia, el backend crea automaticamente un respaldo local minimo para no dejar el modulo de invertir sin datos.
-10. Las ordenes creadas fuera de horario de mercado quedan pendientes con saldo congelado.
-11. Cada minuto, `TradingService` ejecuta un job programado que intenta ejecutar las ordenes pendientes si el mercado esta abierto.
-12. Las ordenes pendientes que no puedan ejecutarse se marcan como rechazadas y se libera el saldo congelado.
-13. La pantalla de noticias aun no consulta servicios externos.
+### 1. Portafolio (`/portafolio`)
+* **Estado**: 🟢 **100% Funcional**
+* **Frontend**: Muestra indicadores clave de la cuenta (Saldo Disponible, Valor Total de Activos, Rendimiento Porcentual Acumulado y Variación Diaria Promedio). Contiene dos pestañas principales (Acciones en cartera y Órdenes registradas) con capacidad de gestionar de inmediato órdenes pendientes.
+* **Backend**: Controlado en [PortfolioController.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/controller/PortfolioController.java). Consume datos aislados de `tbl_posicion`, `tbl_orden` y realiza cálculos de rentabilidad histórica usando datos ponderados de transacciones previas.
 
-## Fuente de datos de mercado
+### 2. Invertir (`/invertir`)
+* **Estado**: 🟢 **100% Funcional**
+* **Frontend**: Lista las cotizaciones más dinámicas, incluye un carrusel de acciones destacadas, un buscador por texto, gráficas de comportamiento frente al portafolio y la tarjeta avanzada de operaciones (Compra/Venta, Órdenes de Mercado/Límite/Stop).
+* **Backend**: Mapeado en [MarketController.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/controller/MarketController.java). Expone cotizaciones, detalles individuales, metadatos del estado del mercado y análisis fundamental.
 
-La aplicacion no usa una API route interna de Next para mercado ni mantiene doble fuente de verdad.
+### 3. Control de Dinero (`/controlador`)
+* **Estado**: 🟢 **100% Funcional**
+* **Frontend**: Administrador de ingresos/egresos personales con listado de movimientos, creación, edición, eliminación y gráfica acumulativa del comportamiento financiero del mes.
+* **Backend**: Expone operaciones CRUD completas aisladas por el token del usuario sobre `tbl_movimiento` y `tbl_cuenta_gestor`.
 
-Comportamiento actual del backend:
+### 4. Noticias Real-Time (`/noticias`)
+* **Estado**: 🟢 **100% Funcional**
+* **Frontend**: Tarjetas optimizadas por filtros (`Todas`, `Acciones`, `Cripto`, `Mundiales`), con imagen de portada, enlace a fuente oficial, fecha de publicación y estados pulidos de carga.
 
-- intenta obtener mercado desde Alpha Vantage usando `ALPHA_VANTAGE_API_KEY`
-- si obtiene datos validos, persiste o actualiza activos en `tbl_activo`
-- guarda snapshots de precio en `tbl_historial_precios`
-- si Alpha Vantage no responde, no tiene datos o esta limitado, usa el ultimo estado persistido
-- si aun no existe mercado persistido, crea un conjunto base de acciones para que la app siga operativa
+---
 
-El endpoint `GET /api/market/status` permite ver:
+## 🔐 Seguridad e Identidad (Google OAuth + JWT)
 
-- si la API key esta configurada
-- si Alpha Vantage esta disponible en ese momento
-- cuantos activos hay persistidos
-- si la fuente actual es `alpha_vantage` o `respaldo_local`
+El ecosistema cuenta con protección total multiusuario estructurada en las siguientes etapas:
+1. **Inicio de sesión**: El cliente se autentica en la UI mediante el portal de Google Auth implementado a través de `NextAuth.js`.
+2. **Validación en Backend**: Al recibir el token de sesión (`id_token`), el frontend lo transmite al backend en `POST /api/auth/google`. El backend utiliza la biblioteca oficial `google-api-client` para validar la autenticidad del token directamente con los servidores de Google.
+3. **Aprovisionamiento Automático**: Si es la primera vez que el usuario ingresa, el backend crea en una transacción atómica el registro en `tbl_persona`, su cuenta broker con balance inicial demo (`tbl_cuenta_broker`) y su cuenta gestora personal (`tbl_cuenta_gestor`).
+4. **JWT Propietario**: Tras validar la firma del token de Google, el backend genera un token **JJWT firmado** con validez de sesión y lo entrega al cliente.
+5. **Aislamiento en Consultas**: El cliente guarda este token y lo adjunta en el encabezado `Authorization: Bearer <token>` para todas sus peticiones. El backend valida el token e inyecta el correo del usuario en el contexto de seguridad (`@AuthenticationPrincipal`), aislando de forma absoluta las operaciones en la base de datos.
 
-## Reglas de negocio implementadas en invertir
+---
 
-- la cuenta broker demo se crea automaticamente si no existe
-- el saldo inicial demo es de `30.000.000`
-- no se permiten cantidades menores o iguales a cero (minimo `0.0001`)
-- una compra no puede exceder el saldo disponible
-- una compra ejecutada descuenta el monto del saldo disponible y actualiza o crea la posicion con precio promedio ponderado
-- una venta solo puede hacerse si existe posicion abierta con suficiente cantidad
-- una venta ejecutada aumenta el saldo disponible y reduce o elimina la posicion
-- si el mercado esta abierto (lunes a viernes, 9:30 a 16:00 hora de Nueva York), la orden se ejecuta inmediatamente
-- si el mercado esta cerrado, la orden queda pendiente y el saldo de la compra se mueve a saldo congelado
-- el job programado de `TradingService` corre cada minuto e intenta ejecutar las ordenes pendientes cuando el mercado esta abierto
-- si una orden pendiente de compra no tiene saldo suficiente al ejecutarse, se rechaza y se libera el saldo congelado
-- las ordenes limite usan el precio indicado como precio de referencia; las ordenes de mercado usan el precio actual del activo
-- **Modificacion de ordenes**: solo se pueden editar ordenes en estado `pendiente`.
-- **Cancelacion de ordenes**: solo se pueden cancelar ordenes en estado `pendiente`. Al cancelar una compra, el dinero se descongela inmediatamente.
+## 🛢️ Esquema de la Base de Datos
 
-## Estado de ordenes
+El diseño físico en MySQL consta de 17 tablas normalizadas configuradas en [schema.sql](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/resources/schema.sql):
 
-| Estado | Descripcion |
+| Tabla | Descripción |
 |---|---|
-| `ejecutada` | Orden completada exitosamente |
-| `pendiente` | Orden en espera de apertura de mercado |
-| `rechazada` | Orden que no pudo ejecutarse al procesarse |
-| `cancelada` | Orden cancelada (catalogada pero no usada aun) |
+| `tbl_tipo_documento` | Tipos de identificación soportados |
+| `tbl_estado_cuenta` | Estados posibles de cuentas broker/gestor |
+| `tbl_estado_activo` | Control de activos listados (`activo`, `suspendido`) |
+| `tbl_estado_orden` | Estados de órdenes (`ejecutada`, `pendiente`, `rechazada`, `cancelada`) |
+| `tbl_tipo_movimiento` | Tipos en finanzas personales (`ingreso`, `egreso`) |
+| `tbl_tipo_activo` | Tipos de mercado (`accion`, `cripto`, `etf`) |
+| `tbl_tipo_orden` | Tipos de ejecución (`mercado`, `limite`, `stop`) |
+| `tbl_tipo_operacion` | Acciones de trading (`compra`, `venta`) |
+| `tbl_categoria` | Categorías financieras vinculadas a tipos de movimiento |
+| `tbl_persona` | Perfil del usuario autenticado vía Google |
+| `tbl_cuenta_gestor` | Registro de dinero personal |
+| `tbl_cuenta_broker` | Balance disponible, congelado y reinicios de simulación |
+| `tbl_activo` | Tabla global de instrumentos financieros y precios actuales |
+| `tbl_historial_precios` | Registro histórico OHLC para generación de gráficas |
+| `tbl_analisis_fundamental_accion` | Caché persistente con más de 30 indicadores fundamentales de Alpha Vantage |
+| `tbl_posicion` | Cartera de activos consolidada con promedios ponderados |
+| `tbl_orden` | Historial de órdenes de compra/venta con sus respectivos estados |
+| `tbl_movimiento` | Transacciones financieras de ingresos/egresos del usuario |
 
-## Variables de entorno
+---
+
+## ⚠️ Posibles Fallas del Sistema y Puntos de Atención (Identificados en Mayo 2026)
+
+Tras una revisión exhaustiva de las actualizaciones de código más recientes, se han identificado las siguientes vulnerabilidades técnicas y de lógica de negocio que requieren atención. **Ninguno de estos problemas ha sido modificado en el código**, para respetar el aislamiento de la fase de análisis actual.
+
+### 1. 🐛 Error de Importación de Glosario (`nexa/src/pages/glosario/index.jsx`)
+* **Ubicación**: [index.jsx](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/glosario/index.jsx#L3)
+* **Línea de código**: `import indicadores from "/glosario.json";`
+* **Falla potencial**: Las rutas absolutas comenzando con `/` en sentencias `import` de ES modules / Webpack no se resuelven de forma nativa a la carpeta raíz del proyecto en entornos de compilación estándar (como Next.js). En sistemas Windows, el compilador buscará `C:\glosario.json` o arrojará un error crítico en tiempo de compilación: `Module not found: Can't resolve '/glosario.json'`.
+* **Acción sugerida**: Cambiar el import a una ruta relativa válida (p. ej. `import indicadores from "../../../glosario.json";`) o mover el archivo JSON dentro de `src` para resolverlo mediante alias `@/`.
+
+### 2. 🔁 Bucle de Redirección / Estado Inconsistente en Autenticación (`nexa/src/pages/login.tsx` & `[...nextauth].ts`)
+* **Ubicación**: [login.tsx](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/login.tsx) y [[...nextauth].ts](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/api/auth/%5B...nextauth%5D.ts)
+* **Falla potencial**: Cuando la autenticación contra el backend falla durante el intercambio en `POST /api/auth/google`, el callback de `jwt` captura el error y asigna la propiedad `backendAuthError` al token. Sin embargo, no arroja un error ni cancela el flujo de NextAuth.
+* **Causa**: Al no arrojar un error explícito, NextAuth considera al usuario como **"autenticado"** (`status === 'authenticated'`). Por lo tanto, el frontend en `login.tsx` ejecuta automáticamente la redirección: `router.push('/portafolio')`. Una vez allí, al no contar con un `accessToken` válido, el portafolio detecta el fallo de sesión y arrojará el error de autenticación, obligando al usuario a volver a `/login`, lo que genera un bucle infinito o un estado intermedio roto para la experiencia del usuario.
+* **Acción sugerida**: El callback `signIn` o `jwt` debe lanzar una excepción o forzar el estado `"unauthenticated"` si el backend rechaza la validación del token de Google.
+
+### 3. 💥 Respuesta 500 sin Fallback en Endpoint de Noticias (`nexa/src/pages/api/news/noticias.ts`)
+* **Ubicación**: [noticias.ts](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/api/news/noticias.ts#L86-L92)
+* **Falla potencial**: El endpoint `/api/news/noticias` valida de forma estricta la existencia de `process.env.MARKETAUX_API_KEY`. Si esta variable no está definida, responde con un código de estado `500` HTTP.
+* **Causa**: A diferencia del backend de Spring Boot (que cuenta con un mecanismo de "seeding" o fallback local de cotizaciones para seguir operando sin internet/API keys), la sección de noticias del frontend carece de un respaldo local mock-up. Si la llave de MarketAux expira, agota sus créditos gratuitos o no está configurada localmente, la página `/noticias` se romperá por completo y el feed quedará inactivo.
+* **Acción sugerida**: Implementar un set de datos mock estáticos en formato JSON como fallback para retornar de forma segura un feed simulado en caso de ausencia de API Keys o errores del servidor de MarketAux.
+
+### 4. 💱 Inconsistencia Monetaria en el Portafolio (`nexa/src/pages/portafolio/index.tsx`)
+* **Ubicación**: [index.tsx](file:///c:/Users/Alejandro/Documents/Broker/nexa/src/pages/portafolio/index.tsx#L17-L22)
+* **Falla potencial**: Las reglas de negocio especifican explícitamente que la cuenta broker demo inicia con un saldo predeterminado de **30,000,000 COP** (Pesos Colombianos). Sin embargo, la función de visualización del portafolio tiene hardcodeada la moneda `'USD'`:
+  ```typescript
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(value)
+  ```
+* **Causa**: Al formatear los 30 millones de pesos colombianos con formato de dólares, se visualiza en la interfaz un balance de `US$ 30.000.000,00` o `$30.000.000,00 USD`. Esto genera una inconsistencia financiera grave entre el valor de las acciones del simulador (que cotizan y se calculan en dólares) y el saldo de la cuenta.
+* **Acción sugerida**: Ajustar el formato a `'COP'` o manejar un factor de conversión dynamic/mapeado en la visualización, tal como se implementó dinámicamente en el modulo de Invertir (`formatPrice(..., priceHistory?.moneda)`).
+
+### 5. ⚙️ Precio de Ejecución Dummy para Órdenes Límite y Stop (`Backend/src/main/java/com/broker/backend/service/TradingService.java`)
+* **Ubicación**: [TradingService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/TradingService.java)
+* **Falla potencial**: La función `resolveExecutionPrice` está hardcodeada para retornar siempre el precio de mercado actual:
+  ```java
+  private BigDecimal resolveExecutionPrice(String orderType, BigDecimal currentMarketPrice, BigDecimal referencePrice) {
+      return currentMarketPrice;
+  }
+  ```
+* **Causa**: Aunque `shouldExecuteOrderNow` valida correctamente si se cruzaron los umbrales límite o stop, al momento de registrar y asentar contablemente la ejecución, el sistema usará `currentMarketPrice`. Si bien esto modela el comportamiento de una orden de mercado al dispararse, para órdenes límite puras la compra/venta debería cerrarse exactamente al precio de referencia condicionado (o de forma más ventajosa), generando discrepancias en los registros de promedio ponderado.
+* **Acción sugerida**: Refactorizar la lógica interna de `resolveExecutionPrice` para que asigne el precio de referencia cuando se trate de órdenes de tipo `"limite"`.
+
+---
+
+## ⚙️ Variables de Entorno
 
 ### Frontend (`nexa/.env.local`)
-
-Variables detectadas o esperadas:
-
 ```env
 NEXT_PUBLIC_BACKEND_API_BASE_URL=http://localhost:8080/api
+BACKEND_API_BASE_URL=http://localhost:8080/api
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=tu_secreto_para_sesiones
-GOOGLE_CLIENT_ID=tu_google_client_id
-GOOGLE_CLIENT_SECRET=tu_google_client_secret
+NEXTAUTH_SECRET=tu_secreto_robusto_para_firmar_sesiones_next
+GOOGLE_CLIENT_ID=tu_google_client_id_despliegue
+GOOGLE_CLIENT_SECRET=tu_google_client_secret_despliegue
+GOOGLE_CLIENT_ID_LOCAL=tu_google_client_id_desarrollo_local
+GOOGLE_CLIENT_SECRET_LOCAL=tu_google_client_secret_desarrollo_local
+MARKETAUX_API_KEY=tu_api_key_de_marketaux
 ```
 
-### Backend
-
-Variables de entorno (locales o Railway):
-
+### Backend (`Backend/src/main/resources/application.properties`)
+Variables esperadas en el entorno (o Railway):
 ```env
 MYSQLHOST=localhost
 MYSQLPORT=3306
 MYSQLDATABASE=broker_db
 MYSQLUSER=root
 MYSQLPASSWORD=root
-JWT_SECRET=tu_secreto_para_tokens
-GOOGLE_CLIENT_ID=tu_google_client_id
-ALPHA_VANTAGE_API_KEY=tu_api_key
+JWT_SECRET=tu_secreto_super_seguro_para_firmar_los_tokens_jwt
+GOOGLE_CLIENT_IDS=client_id_prod,client_id_local
+ALPHA_VANTAGE_API_KEY=tu_api_key_de_alpha_vantage
+FINNHUB_API_KEY=tu_api_key_de_finnhub_opcional
 ```
 
-## Como ejecutar el proyecto
+Para desarrollo local puedes copiar `Backend/.env.example` a `Backend/.env` o `Backend/src/main/resources/application-local.properties.example` a `application-local.properties` (el backend las carga automaticamente al arrancar).
 
-### 1. Preparar la base de datos
+---
 
-Antes de levantar el backend localmente, ejecuta en MySQL en este orden:
+## 🚀 Guía de Ejecución Local
 
-```text
-Backend/src/main/resources/schema.sql
-Backend/src/main/resources/data.sql
-Backend/src/main/resources/seed_movimientos_demo.sql
-Backend/src/main/resources/seed_portafolio_demo.sql
-```
+### 1. Inicialización de la Base de Datos
+Asegúrese de levantar una instancia de MySQL local en el puerto `3306` con codificación `utf8mb4` e importe los siguientes scripts en el orden indicado:
+1. `Backend/src/main/resources/schema.sql` (Estructura de tablas)
+2. `Backend/src/main/resources/data.sql` (Catálogos y estados maestros)
+3. `Backend/src/main/resources/seed_movimientos_demo.sql` (Semilla básica de finanzas personales)
+4. `Backend/src/main/resources/seed_portafolio_demo.sql` (Semilla básica del portafolio)
 
-### 2. Backend
-
-Desde `Backend/`:
-
+### 2. Ejecutar el Backend
+Desde la carpeta raíz del backend `Backend/`:
 ```bash
 mvn spring-boot:run
 ```
+El servidor levantará en el puerto `8080` de manera local.
 
-Backend disponible en:
-
-```text
-http://localhost:8080
-```
-
-### 3. Frontend
-
-Desde `nexa/`:
-
+### 3. Ejecutar el Frontend
+Desde la carpeta raíz del cliente `nexa/`:
 ```bash
 npm install
 npm run dev
 ```
-
-Frontend disponible en:
-
-```text
-http://localhost:3000
+Si se encuentra en Windows y cuenta con políticas de ejecución restrictivas en PowerShell para `npm.ps1`, levante la interfaz con:
+```powershell
+.\dev-local.cmd
 ```
+La aplicación web estará disponible en [http://localhost:3000](http://localhost:3000).
 
-## Despliegue en Railway
+---
 
-El proyecto está configurado para desplegarse en **Railway** usando el `Dockerfile` ubicado en la raíz del repositorio.
+## 📦 Despliegue en Railway
 
-### Pasos para el despliegue:
-
-1. Sube el repositorio a GitHub.
-2. Crea un nuevo proyecto en Railway y conecta el repositorio.
-3. Railway detectará automáticamente el archivo `railway.json` y el `Dockerfile`.
-4. Configura las variables de entorno mencionadas anteriormente en el panel de Railway.
-5. Asegúrate de que el servicio de MySQL en Railway tenga las tablas creadas (puedes usar `spring.jpa.hibernate.ddl-auto=update` para la primera ejecución o cargar los scripts manualmente).
-
-### Configuración del Dockerfile:
-El `Dockerfile` utiliza una construcción multietapa:
-- **Build**: Usa Maven con Java 21 para compilar el backend.
-- **Runtime**: Usa JRE 21 para ejecutar el JAR resultante.
-- Expone el puerto `8080` y utiliza la variable `${PORT}` proporcionada por Railway.
-
-## Esquema de base de datos
-
-La base `broker_db` contiene las siguientes tablas principales:
-
-| Tabla | Descripcion |
-|---|---|
-| `tbl_tipo_documento` | Tipos de documento de identidad |
-| `tbl_estado_cuenta` | Estados de cuenta |
-| `tbl_estado_activo` | Estados de activo financiero |
-| `tbl_estado_orden` | Estados de orden (`ejecutada`, `pendiente`, `rechazada`, `cancelada`) |
-| `tbl_tipo_movimiento` | Tipos de movimiento |
-| `tbl_tipo_activo` | Tipos de activo |
-| `tbl_tipo_orden` | Tipos de orden (`mercado`, `limite`) |
-| `tbl_tipo_operacion` | Tipos de operacion (`compra`, `venta`) |
-| `tbl_categoria` | Categorias de movimiento por tipo |
-| `tbl_persona` | Datos de la persona demo |
-| `tbl_cuenta_gestor` | Cuenta gestora de dinero personal |
-| `tbl_cuenta_broker` | Cuenta broker demo o real (con saldo disponible, congelado y fecha de ultimo reinicio) |
-| `tbl_activo` | Activos financieros disponibles |
-| `tbl_historial_precios` | Historial OHLC de precios por activo |
-| `tbl_posicion` | Posiciones abiertas por cuenta broker |
-| `tbl_orden` | Ordenes de compra y venta |
-| `tbl_movimiento` | Movimientos financieros personales |
-
-## Limitaciones actuales
-
-- la inicializacion de base de datos sigue siendo manual
-- el mercado depende de Alpha Vantage como proveedor externo, aunque ya existe respaldo persistido
-- noticias sigue usando contenido local sin integracion a API externa
-- no se observan pruebas automatizadas completas de frontend o backend para todos los flujos criticos
-- el home `/` sigue siendo una pantalla minima
-
-## Siguientes pasos recomendados
-
-- automatizar la inicializacion de schema y seeds del backend (usar Flyway o Liquibase)
-- agregar un proceso programado para refrescar mercado durante horario habil
-- ampliar el diagnostico de mercado con fecha del ultimo snapshot persistido
-- crear pruebas para servicios del backend y flujos criticos del frontend
-- integrar noticias reales desde una API
-- mejorar la pagina inicial para que refleje mejor el producto
-- implementar reinicio de cuenta demo (ya existe `fecha_ultimo_reinicio` en `tbl_cuenta_broker`)
-
-## Estructura general del repo
-
-```text
-Broker/
-|-- Backend/
-|   |-- src/main/java/com/broker/backend/
-|   |   |-- config/
-|   |   |-- controller/
-|   |   |-- exception/
-|   |   |-- model/
-|   |   |   |-- market/
-|   |   |   |-- movimiento/
-|   |   |   `-- portafolio/
-|   |   |-- persistence/
-|   |   |   |-- entity/
-|   |   |   `-- repository/
-|   |   `-- service/
-|   `-- src/main/resources/
-|-- nexa/
-|   |-- src/components/
-|   |   |-- atoms/
-|   |   |-- moleculas/
-|   |   `-- organismos/
-|   |-- src/mappers/
-|   |-- src/pages/
-|   |-- src/services/
-|   |-- src/styles/
-|   `-- src/types/
-|-- RecursosAdicionales/
-`-- README.md
-```
-
-## Referencias rapidas
-
-- Frontend principal: `nexa/src/pages/`
-- Servicios frontend: `nexa/src/services/`
-- Tipos frontend: `nexa/src/types/`
-- Mappers frontend: `nexa/src/mappers/`
-- Controladores backend: `Backend/src/main/java/com/broker/backend/controller/`
-- Servicios backend: `Backend/src/main/java/com/broker/backend/service/`
-- Modelos de request/response: `Backend/src/main/java/com/broker/backend/model/`
-- Entidades JPA: `Backend/src/main/java/com/broker/backend/persistence/entity/`
-- Repositorios JPA: `Backend/src/main/java/com/broker/backend/persistence/repository/`
-- Scripts SQL: `Backend/src/main/resources/`
-- Material de apoyo: `RecursosAdicionales/`
+El proyecto incluye soporte nativo para despliegue automatizado en Railway:
+* **Archivo de Configuración**: [railway.json](file:///c:/Users/Alejandro/Documents/Broker/railway.json) define el puerto y las directivas de compilación.
+* **Compilación**: Utiliza el [Dockerfile](file:///c:/Users/Alejandro/Documents/Broker/DockerFile) multietapa en la raíz del repositorio.
+  * Etapa 1: Compilación de fuentes Java usando Maven y JDK 21.
+  * Etapa 2: Imagen liviana de ejecución con JRE 21 expuesta en el puerto dinámico asignado por Railway (`${PORT}`).
+* **Base de Datos**: Se conecta de forma transparente declarando las variables de entorno de Railway (`MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER`, `MYSQLPASSWORD`) en las propiedades dinámicas del backend.

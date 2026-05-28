@@ -32,6 +32,14 @@ export interface PortfolioData {
   resumenCuenta: ResumenCuentaBroker
 }
 
+export interface ResetDemoPortfolioResponse {
+  available_cash: number
+  frozen_cash: number
+  last_reset_at: string | null
+  deleted_orders: number
+  message: string
+}
+
 export const getPortfolioData = async (token?: string): Promise<PortfolioData> => {
   const headers = getAuthHeaders(token)
 
@@ -55,6 +63,7 @@ export const getPortfolioData = async (token?: string): Promise<PortfolioData> =
     resumenCuenta: {
       saldoDisponible: resumenData.available_cash ?? 0,
       saldoCongelado: resumenData.frozen_cash ?? 0,
+      fechaUltimoReinicio: resumenData.last_reset_at ?? null,
     },
   }
 }
@@ -105,4 +114,19 @@ export const cancelPortfolioOrder = async (
   }
 
   return data as CrearOrdenRespuesta
+}
+
+export const resetDemoPortfolio = async (token?: string): Promise<ResetDemoPortfolioResponse> => {
+  const response = await fetch(buildBackendUrl('/portafolio/reset'), {
+    method: 'POST',
+    headers: getAuthHeaders(token),
+  })
+
+  const data = await parseBackendResponse(response)
+
+  if (!response.ok) {
+    throw new Error(data.error ?? data.message ?? 'No se pudo reiniciar la demo')
+  }
+
+  return data as ResetDemoPortfolioResponse
 }

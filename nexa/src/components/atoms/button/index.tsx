@@ -23,7 +23,7 @@ interface ButtonProps {
 
 const variantClassNames = {
   default:
-    'justify-center rounded-2xl border border-[var(--bg-border)] px-4 py-3 transition-colors duration-300',
+    'group relative overflow-hidden justify-center rounded-2xl border border-[var(--bg-border)] px-5 py-3 transition-all duration-300 shadow-md active:scale-[0.97] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]',
   sidebar:
     'w-full justify-start rounded-lg px-4 py-2 transition-colors duration-300',
 }
@@ -77,9 +77,16 @@ const Index = ({
 
   const content = (
     <>
-      {iconPosition === 'left' && resolvedIcon}
-      <span>{contentLabel}</span>
-      {iconPosition === 'right' && resolvedIcon}
+      {variant === 'default' && (
+        <span className='absolute inset-0 bg-white/[0.08] opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-none' />
+      )}
+      {iconPosition === 'left' && resolvedIcon && (
+        <span className='relative z-10 flex items-center shrink-0'>{resolvedIcon}</span>
+      )}
+      <span className='relative z-10'>{contentLabel}</span>
+      {iconPosition === 'right' && resolvedIcon && (
+        <span className='relative z-10 flex items-center shrink-0'>{resolvedIcon}</span>
+      )}
     </>
   )
 

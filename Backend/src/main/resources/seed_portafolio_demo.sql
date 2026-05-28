@@ -30,9 +30,9 @@ INSERT INTO tbl_cuenta_broker (
 SELECT
   p.id,
   'demo',
-  30000000.00,
+  100000.00,
   0.00,
-  30000000.00,
+  100000.00,
   ec.id
 FROM tbl_persona p
 JOIN tbl_estado_cuenta ec ON ec.nombre = 'activa'

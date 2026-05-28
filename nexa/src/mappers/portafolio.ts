@@ -22,7 +22,7 @@ export interface PortfolioOrderApiResponse {
   created_at: string
   asset_symbol: string
   order_type: 'buy' | 'sell'
-  order_style: 'mercado' | 'limite'
+  order_style: 'mercado' | 'limite' | 'stop'
   quantity: number
   unit_price: number
   status: 'filled' | 'pending' | 'cancelled' | 'rejected'
@@ -33,7 +33,17 @@ const mapOrderType = (orderType: PortfolioOrderApiResponse['order_type']): Orden
 
 const mapOrderStyle = (
   orderStyle: PortfolioOrderApiResponse['order_style'],
-): OrdenHistorialTipoOrden => (orderStyle === 'limite' ? 'limite' : 'mercado')
+): OrdenHistorialTipoOrden => {
+  if (orderStyle === 'limite') {
+    return 'limite'
+  }
+
+  if (orderStyle === 'stop') {
+    return 'stop'
+  }
+
+  return 'mercado'
+}
 
 const mapOrderStatus = (status: PortfolioOrderApiResponse['status']): OrdenHistorialEstado => {
   switch (status) {
@@ -73,5 +83,7 @@ export const mapPortfolioOrder = (
   tipoOrden: mapOrderStyle(order.order_style),
   cantidad: order.quantity,
   precio: order.unit_price,
+  // Evita arrastres de floating point; el backend redondea a 2 decimales.
+  valorTotal: Math.round(order.quantity * order.unit_price * 100) / 100,
   estado: mapOrderStatus(order.status),
 })

@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 @Transactional
 public class DefaultCuentaBrokerService {
 
+    private static final BigDecimal DEFAULT_DEMO_CASH_USD = new BigDecimal("100000.00");
+
     private final CuentaBrokerRepository cuentaBrokerRepository;
     private final EstadoCuentaRepository estadoCuentaRepository;
     private final PersonaService personaService;
@@ -49,9 +51,9 @@ public class DefaultCuentaBrokerService {
         CuentaBrokerEntity cuentaBroker = new CuentaBrokerEntity();
         cuentaBroker.setPersona(persona);
         cuentaBroker.setTipoCuenta(CuentaBrokerEntity.TipoCuenta.demo);
-        cuentaBroker.setSaldoDisponible(new BigDecimal("30000000.00"));
+        cuentaBroker.setSaldoDisponible(DEFAULT_DEMO_CASH_USD);
         cuentaBroker.setSaldoCongelado(BigDecimal.ZERO);
-        cuentaBroker.setSaldoInicialDemo(new BigDecimal("30000000.00"));
+        cuentaBroker.setSaldoInicialDemo(DEFAULT_DEMO_CASH_USD);
         cuentaBroker.setEstadoCuenta(estadoCuenta);
         return cuentaBrokerRepository.save(cuentaBroker);
     }

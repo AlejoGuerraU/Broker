@@ -13,3 +13,5 @@ SELECT cg.id, p.correo, cg.saldo
 FROM tbl_cuenta_gestor cg
 JOIN tbl_persona p ON p.id = cg.id_persona
 ORDER BY cg.id DESC;
+
+SELECT * FROM tbl_tipo_orden;

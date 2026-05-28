@@ -1,24 +1,31 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { MediumTitle, SubTexto, SubTextoMini, SubTitle } from '@/components/atoms/heroTitles'
 import Input from '@/components/atoms/input'
 import Cardcomprar from '@/components/moleculas/cardComprar'
 import CardAcciones from '@/components/moleculas/cardAcciones'
+import ModalAnalisisFundamental from '@/components/organismos/modalAnalisisFundamental'
 import Carrusel from '@/components/organismos/carrusel'
 import {
   createPortfolioOrder,
   getMarketAssetDetail,
+  getMarketAssetHistory,
+  getMarketFundamentals,
   getMostActiveStocks,
   getMarketStatus,
 } from '@/services/market'
 import type {
   AccionMercadoItem,
+  AnalisisFundamentalMercado,
   CrearOrdenRespuesta,
   DetalleActivoMercado,
   EstadoMercado,
+  HistorialActivoMercado,
+  PuntoHistorialActivoMercado,
   TipoOperacionBroker,
+  TipoOrdenBroker,
 } from '@/types/market'
 
 const fallbackChartStock: AccionMercadoItem = {
@@ -31,8 +38,6 @@ const fallbackChartStock: AccionMercadoItem = {
   logoClase: 'bg-[#2A313A] text-[#E6EBF0]',
 }
 
-const chartLabels = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
-
 const parsePrecio = (precio: string) => Number(precio.replace('$', '').replace(/,/g, ''))
 
 const formatPrice = (precio: number, moneda = 'USD') =>
@@ -43,24 +48,72 @@ const formatPrice = (precio: number, moneda = 'USD') =>
     maximumFractionDigits: 2,
   }).format(precio)
 
-const buildSeriesFromStock = (accion: AccionMercadoItem) => {
-  const precioBase = parsePrecio(accion.precio)
-  const offsets = [-0.042, -0.018, -0.031, 0.012, 0.026, 0.019, accion.variacion / 100]
-  const portfolioOffsets = [-0.016, -0.01, -0.006, 0.004, 0.011, 0.015, 0.018]
+const formatMarketSource = (fuente: string) => {
+  if (fuente === 'alpha_vantage') return 'Alpha Vantage'
+  if (fuente === 'finnhub') return 'Finnhub'
+  return 'Respaldo local'
+}
 
-  return [
+const formatHistoryLabel = (fecha: string) => {
+  const date = new Date(fecha)
+  const includesTime =
+    date.getHours() !== 0 || date.getMinutes() !== 0 || date.getSeconds() !== 0
+
+  return new Intl.DateTimeFormat('es-CO', {
+    month: 'short',
+    day: 'numeric',
+    ...(includesTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+  }).format(date)
+}
+
+const buildChartDataFromHistory = (
+  accion: AccionMercadoItem,
+  historial: HistorialActivoMercado | null,
+) => {
+  const puntos = historial?.puntos ?? []
+
+  if (puntos.length > 0) {
+    return {
+      labels: puntos.map((punto) => formatHistoryLabel(punto.fecha)),
+      series: [
+        {
+          label: accion.simbolo,
+          values: puntos.map((punto) => punto.cierre),
+          color: accion.variacion >= 0 ? '#25B161' : '#FF6B6B',
+        },
+      ],
+    }
+  }
+
+  const precioBase = parsePrecio(accion.precio)
+
+  return {
+    labels: ['Actual'],
+    series: [
+      {
+        label: accion.simbolo,
+        values: [Number(precioBase.toFixed(2))],
+        color: accion.variacion >= 0 ? '#25B161' : '#FF6B6B',
+      },
+    ],
+  }
+}
+
+const getPriceRange = (puntos: PuntoHistorialActivoMercado[]) => {
+  if (puntos.length === 0) {
+    return null
+  }
+
+  return puntos.reduce(
+    (acc, punto) => ({
+      minimo: Math.min(acc.minimo, punto.minimo),
+      maximo: Math.max(acc.maximo, punto.maximo),
+    }),
     {
-      label: accion.simbolo,
-      values: offsets.map((offset) => Number((precioBase * (1 + offset)).toFixed(2))),
-      color: accion.variacion >= 0 ? '#25B161' : '#FF6B6B',
+      minimo: puntos[0].minimo,
+      maximo: puntos[0].maximo,
     },
-    {
-      label: 'Portafolio',
-      values: portfolioOffsets.map((offset) => Number((precioBase * 0.92 * (1 + offset)).toFixed(2))),
-      color: '#4DA3FF',
-      fill: false,
-    },
-  ]
+  )
 }
 
 const Index = () => {
@@ -71,27 +124,40 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [cantidad, setCantidad] = useState('')
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacionBroker>('compra')
+  const [tipoOrden, setTipoOrden] = useState<TipoOrdenBroker>('mercado')
+  const [precioCondicion, setPrecioCondicion] = useState('')
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
   const [isRefreshingSelectedPrice, setIsRefreshingSelectedPrice] = useState(false)
   const [orderMessage, setOrderMessage] = useState<string | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
   const [marketError, setMarketError] = useState<string | null>(null)
   const [marketStatus, setMarketStatus] = useState<EstadoMercado | null>(null)
+  const [priceHistory, setPriceHistory] = useState<HistorialActivoMercado | null>(null)
+  const [isLoadingPriceHistory, setIsLoadingPriceHistory] = useState(false)
+  const [isFundamentalModalOpen, setIsFundamentalModalOpen] = useState(false)
+  const [isLoadingFundamentals, setIsLoadingFundamentals] = useState(false)
+  const [fundamentalsError, setFundamentalsError] = useState<string | null>(null)
+  const [fundamentals, setFundamentals] = useState<AnalisisFundamentalMercado | null>(null)
+
+  // Evita llamar a getMarketAssetDetail cuando la seleccion viene de la carga
+  // inicial (getMostActiveStocks ya trae datos frescos del backend).
+  const skipNextAssetRefresh = useRef(false)
 
   useEffect(() => {
     let ignore = false
 
     const loadMostActive = async () => {
       try {
-        const [marketItems, status] = await Promise.all([
-          getMostActiveStocks(),
-          getMarketStatus(),
-        ])
+        const marketItems = await getMostActiveStocks()
+        const status = await getMarketStatus()
 
         if (!ignore && marketItems.length > 0) {
           setAcciones(marketItems)
           setMarketStatus(status)
           setMarketError(null)
+          // Marcar que la proxima asignacion de selectedId viene de la carga
+          // inicial: los datos ya son frescos, no hace falta un segundo fetch.
+          skipNextAssetRefresh.current = true
           setSelectedId((currentSelectedId) => {
             const stillExists = marketItems.some((accion) => accion.id === currentSelectedId)
             return stillExists ? currentSelectedId : marketItems[0].id
@@ -147,12 +213,94 @@ const Index = () => {
 
   useEffect(() => {
     setCantidad('')
+    setTipoOrden('mercado')
+    setPrecioCondicion('')
     setOrderMessage(null)
     setOrderError(null)
   }, [selectedId])
 
   useEffect(() => {
     if (!accionSeleccionada?.simbolo) {
+      setPriceHistory(null)
+      return
+    }
+
+    let ignore = false
+
+    const loadPriceHistory = async () => {
+      setIsLoadingPriceHistory(true)
+
+      try {
+        const data = await getMarketAssetHistory(accionSeleccionada.simbolo)
+
+        if (!ignore) {
+          setPriceHistory(data)
+        }
+      } catch {
+        if (!ignore) {
+          setPriceHistory(null)
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingPriceHistory(false)
+        }
+      }
+    }
+
+    void loadPriceHistory()
+
+    return () => {
+      ignore = true
+    }
+  }, [accionSeleccionada?.simbolo])
+
+  useEffect(() => {
+    if (!isFundamentalModalOpen || !accionSeleccionada?.simbolo) {
+      return
+    }
+
+    let ignore = false
+
+    const loadFundamentals = async () => {
+      setIsLoadingFundamentals(true)
+      setFundamentalsError(null)
+
+      try {
+        const data = await getMarketFundamentals(accionSeleccionada.simbolo)
+
+        if (!ignore) {
+          setFundamentals(data)
+        }
+      } catch (error) {
+        if (!ignore) {
+          setFundamentals(null)
+          setFundamentalsError(
+            error instanceof Error ? error.message : 'No se pudo cargar el analisis fundamental.',
+          )
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingFundamentals(false)
+        }
+      }
+    }
+
+    void loadFundamentals()
+
+    return () => {
+      ignore = true
+    }
+  }, [isFundamentalModalOpen, accionSeleccionada?.simbolo])
+
+  useEffect(() => {
+    if (!accionSeleccionada?.simbolo) {
+      return
+    }
+
+    // Si la seleccion vino de la carga inicial, los datos ya son frescos:
+    // saltar el fetch para no consumir cuota de Alpha Vantage innecesariamente.
+    if (skipNextAssetRefresh.current) {
+      skipNextAssetRefresh.current = false
       return
     }
 
@@ -175,17 +323,34 @@ const Index = () => {
       }
     }
 
-    refreshSelectedAsset()
+    void refreshSelectedAsset()
 
     return () => {
       ignore = true
     }
   }, [accionSeleccionada?.simbolo])
 
-  const seriesSeleccionadas = useMemo(
-    () => buildSeriesFromStock(accionSeleccionada ?? fallbackChartStock),
-    [accionSeleccionada],
+  const chartData = useMemo(
+    () => buildChartDataFromHistory(accionSeleccionada ?? fallbackChartStock, priceHistory),
+    [accionSeleccionada, priceHistory],
   )
+
+  const historyRange = useMemo(
+    () => getPriceRange(priceHistory?.puntos ?? []),
+    [priceHistory],
+  )
+
+  const chartDescription = useMemo(() => {
+    if (isLoadingPriceHistory) {
+      return `Cargando historial de ${accionSeleccionada?.simbolo ?? 'la accion seleccionada'}`
+    }
+
+    if ((priceHistory?.puntos.length ?? 0) > 1) {
+      return `Serie historica real de ${accionSeleccionada?.simbolo ?? '---'} con ${priceHistory?.puntos.length ?? 0} registros`
+    }
+
+    return `Historial real de ${accionSeleccionada?.simbolo ?? '---'} disponible en la base de datos`
+  }, [accionSeleccionada?.simbolo, isLoadingPriceHistory, priceHistory])
 
   const refreshMarket = async (currentSelectedId?: number) => {
     const marketItems = await getMostActiveStocks()
@@ -220,6 +385,18 @@ const Index = () => {
       return
     }
 
+    const requiresTriggerPrice = tipoOrden === 'limite' || tipoOrden === 'stop'
+    const normalizedPrecioCondicion = Number(precioCondicion)
+
+    if (
+      requiresTriggerPrice
+      && (!Number.isFinite(normalizedPrecioCondicion) || normalizedPrecioCondicion <= 0)
+    ) {
+      setOrderMessage(null)
+      setOrderError(`Ingresa un precio ${tipoOrden === 'stop' ? 'stop' : 'limite'} valido mayor a cero.`)
+      return
+    }
+
     setIsSubmittingOrder(true)
     setOrderMessage(null)
     setOrderError(null)
@@ -232,17 +409,26 @@ const Index = () => {
         simbolo: accionSeleccionada.simbolo,
         tipoOperacion,
         cantidad: normalizedCantidad,
-        tipoOrden: 'mercado',
+        tipoOrden,
+        precioLimite: requiresTriggerPrice ? normalizedPrecioCondicion : undefined,
       }, session?.accessToken)
 
       setOrderMessage(response.mensaje)
       setCantidad('')
+      setTipoOrden('mercado')
+      setPrecioCondicion('')
       await refreshMarket(accionSeleccionada.id)
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : 'No se pudo crear la orden.')
     } finally {
       setIsSubmittingOrder(false)
     }
+  }
+
+  const handleOpenFundamentals = () => {
+    setFundamentals(null)
+    setFundamentalsError(null)
+    setIsFundamentalModalOpen(true)
   }
 
   return (
@@ -253,7 +439,7 @@ const Index = () => {
         titulo='Mas Negociadas'
         acciones={acciones}
         isLoading={isLoading}
-        sourceLabel='Datos obtenidos desde el backend'
+        sourceLabel={marketStatus?.mensaje ?? 'Datos obtenidos desde el backend'}
       />
 
       <div className='flex w-full gap-2 md:w-3/5'>
@@ -279,10 +465,14 @@ const Index = () => {
               className={marketStatus.mercadoAbierto ? 'text-[#B8F3CB]' : 'text-[#F6D38B]'}
             />
             <SubTextoMini
-              text={`Fuente: ${marketStatus.fuente} · Zona: ${marketStatus.zonaHorariaMercado}`}
+              text={`Fuente: ${formatMarketSource(marketStatus.fuente)} · Zona: ${marketStatus.zonaHorariaMercado}`}
               className='text-[var(--bg-muted)]'
             />
           </div>
+          <SubTextoMini
+            text={marketStatus.mensaje}
+            className='mt-1 text-[var(--bg-muted)]'
+          />
           <SubTextoMini
             text={
               marketStatus.mercadoAbierto
@@ -368,15 +558,64 @@ const Index = () => {
         <div className='space-y-6'>
           <CardAcciones
             titulo={`Movimiento de ${accionSeleccionada?.nombre ?? 'mercado'}`}
-            descripcion={`Comparativa semanal de ${accionSeleccionada?.simbolo ?? '---'} frente al portafolio`}
+            descripcion={chartDescription}
             valorActual={accionSeleccionada?.precio ?? '$0.00'}
             variacion={accionSeleccionada ? `${accionSeleccionada.variacion >= 0 ? '+' : ''}${accionSeleccionada.variacion.toFixed(2)}% hoy` : 'Sin datos'}
-            labels={chartLabels}
-            series={seriesSeleccionadas}
-            xAxisLabel='Periodo'
+            labels={chartData.labels}
+            series={chartData.series}
+            xAxisLabel='Fecha'
             yAxisLabel='Precio'
-            showLegend
+            valueFormatter={(value) => formatPrice(value, priceHistory?.moneda ?? 'USD')}
           />
+
+          {historyRange ? (
+            <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+              <div className='rounded-[24px] border border-[var(--bg-border)] bg-[#11161C] p-4'>
+                <SubTextoMini text='Registros graficados' className='text-[var(--bg-muted)]' />
+                <SubTexto text={`${priceHistory?.puntos.length ?? 0}`} className='mt-1 font-semibold text-[var(--bg-text)]' />
+              </div>
+              <div className='rounded-[24px] border border-[var(--bg-border)] bg-[#11161C] p-4'>
+                <SubTextoMini text='Minimo del periodo' className='text-[var(--bg-muted)]' />
+                <SubTexto text={formatPrice(historyRange.minimo, priceHistory?.moneda ?? 'USD')} className='mt-1 font-semibold text-[var(--bg-text)]' />
+              </div>
+              <div className='rounded-[24px] border border-[var(--bg-border)] bg-[#11161C] p-4'>
+                <SubTextoMini text='Maximo del periodo' className='text-[var(--bg-muted)]' />
+                <SubTexto text={formatPrice(historyRange.maximo, priceHistory?.moneda ?? 'USD')} className='mt-1 font-semibold text-[var(--bg-text)]' />
+              </div>
+              <div className='rounded-[24px] border border-[var(--bg-border)] bg-[#11161C] p-4'>
+                <SubTextoMini text='Ultimo cierre' className='text-[var(--bg-muted)]' />
+                <SubTexto
+                  text={formatPrice(priceHistory?.puntos.at(-1)?.cierre ?? parsePrecio(accionSeleccionada?.precio ?? '$0.00'), priceHistory?.moneda ?? 'USD')}
+                  className='mt-1 font-semibold text-[var(--bg-text)]'
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className='rounded-[28px] border border-[var(--bg-border)] bg-[linear-gradient(135deg,#10141A_0%,#131D18_100%)] p-5 shadow-[0_14px_30px_rgba(0,0,0,0.22)]'>
+            <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+              <div className='space-y-2'>
+                <SubTitle text='Analisis fundamental' className='text-[var(--bg-text)]' />
+                <SubTexto
+                  text={`Explora valoracion, rentabilidad, crecimiento y dividendos de ${accionSeleccionada?.simbolo ?? 'la accion seleccionada'}.`}
+                  className='text-[var(--bg-muted)]'
+                />
+                <SubTextoMini
+                  text='Los indicadores se consultan solo cuando abres el modal.'
+                  className='text-[var(--bg-muted)]'
+                />
+              </div>
+
+              <button
+                type='button'
+                onClick={handleOpenFundamentals}
+                disabled={!accionSeleccionada}
+                className='inline-flex h-12 items-center justify-center rounded-2xl border border-[#244E35] bg-[#1A2A20] px-5 text-sm font-semibold text-[#C4F2D3] transition hover:bg-[#203324] disabled:cursor-not-allowed disabled:opacity-60'
+              >
+                Ver indicadores fundamentales
+              </button>
+            </div>
+          </div>
 
           <Cardcomprar
             nombreAccion={accionSeleccionada?.nombre}
@@ -387,6 +626,10 @@ const Index = () => {
             onCantidadChange={setCantidad}
             tipoOperacion={tipoOperacion}
             onTipoOperacionChange={setTipoOperacion}
+            tipoOrden={tipoOrden}
+            onTipoOrdenChange={setTipoOrden}
+            precioCondicion={precioCondicion}
+            onPrecioCondicionChange={setPrecioCondicion}
             onSubmit={handleSubmitOrder}
             isSubmitting={isSubmittingOrder}
             isRefreshingPrice={isRefreshingSelectedPrice}
@@ -395,6 +638,15 @@ const Index = () => {
           />
         </div>
       </section>
+
+      <ModalAnalisisFundamental
+        isOpen={isFundamentalModalOpen}
+        simbolo={accionSeleccionada?.simbolo}
+        isLoading={isLoadingFundamentals}
+        error={fundamentalsError}
+        data={fundamentals}
+        onClose={() => setIsFundamentalModalOpen(false)}
+      />
     </div>
   )
 }

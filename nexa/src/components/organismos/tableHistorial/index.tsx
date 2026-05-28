@@ -50,6 +50,7 @@ const Index = ({ ordenes, pendingActionId = null, onSelect }: TableHistorialProp
             <th className='px-5 py-4 font-semibold'>Orden</th>
             <th className='px-5 py-4 text-right font-semibold'>Cantidad</th>
             <th className='px-5 py-4 text-right font-semibold'>Precio</th>
+            <th className='px-5 py-4 text-right font-semibold'>Costo</th>
             <th className='px-5 py-4 font-semibold'>Estado</th>
             <th className='px-5 py-4 text-right font-semibold'>Acciones</th>
           </tr>
@@ -58,7 +59,7 @@ const Index = ({ ordenes, pendingActionId = null, onSelect }: TableHistorialProp
         <tbody>
           {ordenes.length === 0 ? (
             <tr className='border-t border-[rgba(255,255,255,0.04)]'>
-              <td colSpan={8} className='px-5 py-10 text-center text-sm text-[var(--bg-muted)]'>
+              <td colSpan={9} className='px-5 py-10 text-center text-sm text-[var(--bg-muted)]'>
                 No hay ordenes registradas todavia.
               </td>
             </tr>
@@ -79,6 +80,7 @@ const Index = ({ ordenes, pendingActionId = null, onSelect }: TableHistorialProp
               <td className='px-5 py-4 text-[17px] capitalize text-[#8EA2BF]'>{orden.tipoOrden}</td>
               <td className='px-5 py-4 text-right text-[17px] font-medium'>{orden.cantidad}</td>
               <td className='px-5 py-4 text-right text-[17px] font-medium'>{formatPrecio(orden.precio)}</td>
+              <td className='px-5 py-4 text-right text-[17px] font-medium'>{formatPrecio(orden.valorTotal)}</td>
               <td className='px-5 py-4'>
                 <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium capitalize ${estadoClassNames[orden.estado]}`}>
                   {orden.estado}

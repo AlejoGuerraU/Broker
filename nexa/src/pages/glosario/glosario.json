@@ -1,0 +1,138 @@
+[
+  {
+    "name": "P/E",
+    "full": "Price-to-Earnings Ratio",
+    "category": "Valuación",
+    "definition": "Relaciona el precio de la acción con las ganancias por acción (EPS). Indica cuánto está dispuesto a pagar el mercado por cada unidad de ganancia.",
+    "formula": "P/E = Precio por acción ÷ Ganancias por acción (EPS)",
+    "interpretation": "Un P/E alto puede indicar que el mercado espera crecimiento futuro, o que la acción está cara. Un P/E bajo puede ser una oportunidad o una señal de problemas. Compara siempre dentro del mismo sector."
+  },
+  {
+    "name": "P/B",
+    "full": "Price-to-Book Ratio",
+    "category": "Valuación",
+    "definition": "Compara el precio de mercado de la acción con su valor en libros (activos netos por acción). Muy usado en bancos y empresas con activos tangibles.",
+    "formula": "P/B = Precio por acción ÷ Valor en libros por acción",
+    "interpretation": "P/B menor a 1 puede sugerir que la empresa cotiza por debajo de su valor contable. P/B mayor a 3 suele verse en empresas con alto valor intangible como tecnología o marcas reconocidas."
+  },
+  {
+    "name": "EV/EBITDA",
+    "full": "Enterprise Value / EBITDA",
+    "category": "Valuación",
+    "definition": "Mide el valor total de la empresa (incluyendo deuda) en relación a su generación de caja operativa. Es útil para comparar empresas con diferente estructura de capital.",
+    "formula": "EV/EBITDA = Valor empresa ÷ EBITDA",
+    "interpretation": "Múltiplos bajos (menos de 8×) generalmente indican empresas más baratas. Útil para comparaciones entre sectores con distinto nivel de endeudamiento."
+  },
+  {
+    "name": "P/S",
+    "full": "Price-to-Sales Ratio",
+    "category": "Valuación",
+    "definition": "Compara la capitalización de mercado con los ingresos totales. Se usa especialmente en empresas sin ganancias positivas, como startups o tecnológicas en crecimiento.",
+    "formula": "P/S = Capitalización de mercado ÷ Ingresos anuales",
+    "interpretation": "Útil cuando el P/E no aplica. Un P/S menor a 1 puede indicar subvaloración; mayor a 10 suele verse en empresas de alto crecimiento esperado."
+  },
+  {
+    "name": "EBITDA",
+    "full": "Earnings Before Interest, Taxes, Depreciation & Amortization",
+    "category": "Rentabilidad",
+    "definition": "Ganancias antes de intereses, impuestos, depreciación y amortización. Aproxima la capacidad operativa de una empresa para generar caja, eliminando efectos contables y financieros.",
+    "formula": "EBITDA = Utilidad operativa + Depreciación + Amortización",
+    "interpretation": "Un EBITDA creciente indica mejora operativa. No incluye inversión en capital (CAPEX), por lo que no refleja el efectivo real disponible. Compara el margen EBITDA (%) entre empresas del mismo sector."
+  },
+  {
+    "name": "ROE",
+    "full": "Return on Equity",
+    "category": "Rentabilidad",
+    "definition": "Mide la rentabilidad generada por cada unidad de patrimonio de los accionistas. Indica qué tan eficientemente la empresa usa el capital propio.",
+    "formula": "ROE = Utilidad neta ÷ Patrimonio neto × 100",
+    "interpretation": "ROE mayor al 15% suele considerarse bueno, aunque varía por sector. Un ROE alto financiado con mucha deuda puede ser engañoso debido al efecto palanca."
+  },
+  {
+    "name": "ROA",
+    "full": "Return on Assets",
+    "category": "Rentabilidad",
+    "definition": "Mide la utilidad generada en relación al total de activos de la empresa. Refleja qué tan eficiente es la compañía en usar todos sus recursos.",
+    "formula": "ROA = Utilidad neta ÷ Activos totales × 100",
+    "interpretation": "ROA mayor al 5% es generalmente sólido. Es más útil que el ROE para comparar empresas con diferentes niveles de deuda, ya que considera el total de activos."
+  },
+  {
+    "name": "Margen neto",
+    "full": "Net Profit Margin",
+    "category": "Rentabilidad",
+    "definition": "Porcentaje de los ingresos que queda como ganancia neta después de todos los costos, gastos e impuestos.",
+    "formula": "Margen neto = Utilidad neta ÷ Ingresos × 100",
+    "interpretation": "Un margen neto estable o creciente indica buena gestión de costos. Los márgenes varían enormemente por sector: un supermercado puede tener 2–3% mientras que una empresa de software puede superar el 25%."
+  },
+  {
+    "name": "D/E",
+    "full": "Debt-to-Equity Ratio",
+    "category": "Deuda",
+    "definition": "Compara la deuda total de la empresa con su patrimonio neto. Mide el grado de apalancamiento financiero y el riesgo para los accionistas.",
+    "formula": "D/E = Deuda total ÷ Patrimonio neto",
+    "interpretation": "D/E mayor a 2 puede indicar alto riesgo financiero, aunque sectores como utilities o bancos operan con ratios naturalmente altos. D/E menor a 1 indica que la empresa se financia más con capital propio."
+  },
+  {
+    "name": "Interest Coverage",
+    "full": "Interest Coverage Ratio",
+    "category": "Deuda",
+    "definition": "Indica cuántas veces puede la empresa pagar sus gastos de interés con su utilidad operativa. Mide la capacidad de servir la deuda.",
+    "formula": "Interest Coverage = EBIT ÷ Gastos por intereses",
+    "interpretation": "Un ratio menor a 1.5 es señal de riesgo de impago. Mayor a 3 se considera saludable. Cuanto mayor sea el ratio, mayor capacidad de absorber caídas en ingresos sin incumplir obligaciones."
+  },
+  {
+    "name": "Current Ratio",
+    "full": "Razón corriente",
+    "category": "Liquidez",
+    "definition": "Mide la capacidad de la empresa para cubrir sus obligaciones de corto plazo con sus activos corrientes (caja, inventario, cuentas por cobrar).",
+    "formula": "Current Ratio = Activos corrientes ÷ Pasivos corrientes",
+    "interpretation": "Un valor entre 1.5 y 3 se considera saludable. Menor a 1 sugiere que la empresa podría tener dificultades para pagar sus deudas a corto plazo."
+  },
+  {
+    "name": "Quick Ratio",
+    "full": "Prueba ácida",
+    "category": "Liquidez",
+    "definition": "Similar al Current Ratio pero excluye los inventarios, que son el activo corriente menos líquido. Es una medida más conservadora de liquidez.",
+    "formula": "Quick Ratio = (Activos corrientes − Inventarios) ÷ Pasivos corrientes",
+    "interpretation": "Quick Ratio mayor a 1 indica que la empresa puede cubrir sus obligaciones inmediatas sin depender de vender inventario. Es especialmente relevante en manufactura y retail."
+  },
+  {
+    "name": "EPS",
+    "full": "Earnings Per Share",
+    "category": "Mercado",
+    "definition": "Ganancia neta dividida entre el número de acciones en circulación. Representa la porción de beneficio que corresponde a cada acción.",
+    "formula": "EPS = Utilidad neta ÷ Acciones en circulación",
+    "interpretation": "Un EPS creciente trimestre a trimestre es una señal positiva. Compara el EPS real vs. el EPS esperado por analistas (beat/miss) para entender la reacción del mercado."
+  },
+  {
+    "name": "Beta",
+    "full": "Coeficiente Beta",
+    "category": "Mercado",
+    "definition": "Mide la volatilidad de una acción relativa al mercado general (usualmente el S&P 500). Indica cuánto se mueve la acción cuando el mercado sube o baja 1%.",
+    "formula": "Beta = Covarianza(acción, mercado) ÷ Varianza(mercado)",
+    "interpretation": "Beta mayor a 1: más volátil que el mercado (mayor riesgo y potencial retorno). Beta menor a 1: menos volátil, más defensiva. Beta negativa: se mueve en contra del mercado."
+  },
+  {
+    "name": "Dividend Yield",
+    "full": "Rendimiento por dividendo",
+    "category": "Mercado",
+    "definition": "Porcentaje del precio de la acción que se paga anualmente como dividendo. Indica el retorno en efectivo que recibe el inversor por mantener la acción.",
+    "formula": "Dividend Yield = Dividendo anual por acción ÷ Precio por acción × 100",
+    "interpretation": "Yields altos (mayor al 5–6%) pueden ser atractivos pero también pueden indicar que el precio cayó o que el dividendo no es sostenible. Verifica el Payout Ratio para evaluar sostenibilidad."
+  },
+  {
+    "name": "CAGR",
+    "full": "Compound Annual Growth Rate",
+    "category": "Crecimiento",
+    "definition": "Tasa de crecimiento anual compuesta. Representa la tasa a la que una métrica (ingresos, utilidades, precio) habría crecido si lo hubiera hecho a ritmo constante.",
+    "formula": "CAGR = (Valor final ÷ Valor inicial)^(1/años) − 1",
+    "interpretation": "El CAGR elimina la volatilidad anual para mostrar una tendencia de largo plazo. Un CAGR de ingresos mayor al 15% anual suele considerarse alto crecimiento en mercados maduros."
+  },
+  {
+    "name": "Free Cash Flow",
+    "full": "Flujo de caja libre",
+    "category": "Crecimiento",
+    "definition": "Efectivo generado por las operaciones después de descontar el gasto en capital (CAPEX). Representa el dinero real disponible para pagar deuda, dividendos, recompras o inversiones.",
+    "formula": "FCF = Flujo de caja operativo − CAPEX",
+    "interpretation": "FCF positivo y creciente es una señal de salud financiera sólida. Empresas con alto FCF tienen mayor flexibilidad estratégica. Buffett lo considera el indicador más importante."
+  }
+]

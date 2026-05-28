@@ -1,0 +1,49 @@
+package com.broker.backend.model.market;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+public record MarketFundamentalAnalysisResponse(
+        String simbolo,
+        String nombreEmpresa,
+        String descripcion,
+        String mercado,
+        String moneda,
+        String pais,
+        String sector,
+        String industria,
+        BigDecimal capitalizacionMercado,
+        BigDecimal ebitda,
+        BigDecimal perRatio,
+        BigDecimal forwardPer,
+        BigDecimal pegRatio,
+        BigDecimal priceToSalesRatioTtm,
+        BigDecimal priceToBookRatio,
+        BigDecimal evToRevenue,
+        BigDecimal evToEbitda,
+        BigDecimal bookValue,
+        BigDecimal dividendPerShare,
+        BigDecimal dividendYield,
+        BigDecimal eps,
+        BigDecimal revenuePerShareTtm,
+        BigDecimal profitMargin,
+        BigDecimal operatingMarginTtm,
+        BigDecimal returnOnAssetsTtm,
+        BigDecimal returnOnEquityTtm,
+        BigDecimal revenueTtm,
+        BigDecimal grossProfitTtm,
+        BigDecimal dilutedEpsTtm,
+        BigDecimal quarterlyEarningsGrowthYoy,
+        BigDecimal quarterlyRevenueGrowthYoy,
+        BigDecimal analystTargetPrice,
+        BigDecimal beta,
+        BigDecimal week52High,
+        BigDecimal week52Low,
+        BigDecimal movingAverage50Day,
+        BigDecimal movingAverage200Day,
+        BigDecimal sharesOutstanding,
+        String dividendDate,
+        String exDividendDate,
+        LocalDateTime fechaActualizacion
+) {
+}

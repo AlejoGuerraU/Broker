@@ -15,6 +15,23 @@ const Index = ({
   sizes,
   ...props
 }: ImagenProps) => {
+  const isRemoteImage = /^https?:\/\//i.test(ruta)
+
+  if (isRemoteImage) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={ruta}
+        alt={descripcion}
+        width={typeof width === 'number' ? width : undefined}
+        height={typeof height === 'number' ? height : undefined}
+        className={className}
+        loading='lazy'
+        referrerPolicy='no-referrer'
+      />
+    )
+  }
+
   return (
     <Image
       src={ruta}

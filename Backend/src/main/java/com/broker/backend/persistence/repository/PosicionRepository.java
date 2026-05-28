@@ -11,4 +11,6 @@ public interface PosicionRepository extends JpaRepository<PosicionEntity, Long> 
     List<PosicionEntity> findAllByCuentaBrokerIdOrderByActivoSimboloAsc(Long cuentaBrokerId);
 
     Optional<PosicionEntity> findByCuentaBrokerIdAndActivoId(Long cuentaBrokerId, Long activoId);
+
+    void deleteAllByCuentaBrokerId(Long cuentaBrokerId);
 }

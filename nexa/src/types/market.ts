@@ -10,7 +10,7 @@ export interface AccionMercadoItem {
 }
 
 export type TipoOperacionBroker = 'compra' | 'venta'
-export type TipoOrdenBroker = 'mercado' | 'limite'
+export type TipoOrdenBroker = 'mercado' | 'limite' | 'stop'
 
 export interface CrearOrdenPayload {
   simbolo: string
@@ -51,6 +51,21 @@ export interface DetalleActivoMercado {
   moneda: string
 }
 
+export interface PuntoHistorialActivoMercado {
+  fecha: string
+  apertura: number
+  maximo: number
+  minimo: number
+  cierre: number
+}
+
+export interface HistorialActivoMercado {
+  activoId: number
+  simbolo: string
+  moneda: string
+  puntos: PuntoHistorialActivoMercado[]
+}
+
 export interface EstadoMercado {
   fuente: string
   apiKeyConfigurada: boolean
@@ -59,4 +74,48 @@ export interface EstadoMercado {
   zonaHorariaMercado: string
   activosPersistidos: number
   mensaje: string
+}
+
+export interface AnalisisFundamentalMercado {
+  simbolo: string
+  nombreEmpresa: string
+  descripcion: string | null
+  mercado: string | null
+  moneda: string | null
+  pais: string | null
+  sector: string | null
+  industria: string | null
+  capitalizacionMercado: number | null
+  ebitda: number | null
+  perRatio: number | null
+  forwardPer: number | null
+  pegRatio: number | null
+  priceToSalesRatioTtm: number | null
+  priceToBookRatio: number | null
+  evToRevenue: number | null
+  evToEbitda: number | null
+  bookValue: number | null
+  dividendPerShare: number | null
+  dividendYield: number | null
+  eps: number | null
+  revenuePerShareTtm: number | null
+  profitMargin: number | null
+  operatingMarginTtm: number | null
+  returnOnAssetsTtm: number | null
+  returnOnEquityTtm: number | null
+  revenueTtm: number | null
+  grossProfitTtm: number | null
+  dilutedEpsTtm: number | null
+  quarterlyEarningsGrowthYoy: number | null
+  quarterlyRevenueGrowthYoy: number | null
+  analystTargetPrice: number | null
+  beta: number | null
+  week52High: number | null
+  week52Low: number | null
+  movingAverage50Day: number | null
+  movingAverage200Day: number | null
+  sharesOutstanding: number | null
+  dividendDate: string | null
+  exDividendDate: string | null
+  fechaActualizacion: string
 }

@@ -56,6 +56,18 @@ public class HistorialPrecioEntity {
         return precioCierre;
     }
 
+    public BigDecimal getPrecioApertura() {
+        return precioApertura;
+    }
+
+    public BigDecimal getPrecioMaximo() {
+        return precioMaximo;
+    }
+
+    public BigDecimal getPrecioMinimo() {
+        return precioMinimo;
+    }
+
     public void setActivo(ActivoEntity activo) {
         this.activo = activo;
     }
