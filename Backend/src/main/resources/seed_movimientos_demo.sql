@@ -1,5 +1,3 @@
-USE broker_db;
-
 INSERT INTO tbl_persona (
   nombre,
   correo,
