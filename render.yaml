@@ -14,9 +14,10 @@ services:
     dockerfilePath: ./Dockerfile
     # Render inyecta PORT automáticamente; Spring Boot lo lee via ${PORT:8080}
     envVars:
-      # Base de datos (MySQL — usa Render MySQL add-on o externo)
+    
+      # Base de datos (PostgreSQL — usa Render PostgreSQL add-on o externo)
       - key: DB_URL
-        sync: false  # Ejemplo: jdbc:mysql://<host>:3306/broker_db?useSSL=true&serverTimezone=America/Bogota
+        sync: false  # Ejemplo: jdbc:postgresql://<host>:5432/broker_db
       - key: DB_USERNAME
         sync: false
       - key: DB_PASSWORD
