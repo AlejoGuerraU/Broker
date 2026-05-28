@@ -28,7 +28,7 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         Integer columnCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM information_schema.columns
-                WHERE table_schema = DATABASE()
+                WHERE table_schema = current_schema()
                   AND table_name = 'tbl_persona'
                   AND column_name = 'google_sub'
                 """, Integer.class);
@@ -38,16 +38,16 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
 
         LOGGER.warn("La columna tbl_persona.google_sub no existe. Se agregara automaticamente.");
-        jdbcTemplate.execute("ALTER TABLE tbl_persona ADD COLUMN google_sub VARCHAR(255) NULL AFTER correo");
+        jdbcTemplate.execute("ALTER TABLE tbl_persona ADD COLUMN google_sub VARCHAR(255) NULL");
     }
 
     private void ensurePersonaGoogleSubUniqueIndex() {
         Integer indexCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
-                FROM information_schema.statistics
-                WHERE table_schema = DATABASE()
-                  AND table_name = 'tbl_persona'
-                  AND index_name = 'uk_persona_google_sub'
+                FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'tbl_persona'
+                  AND indexname = 'uk_persona_google_sub'
                 """, Integer.class);
 
         if (indexCount != null && indexCount > 0) {
@@ -55,6 +55,6 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
 
         LOGGER.warn("El indice unico uk_persona_google_sub no existe. Se creara automaticamente.");
-        jdbcTemplate.execute("ALTER TABLE tbl_persona ADD UNIQUE KEY uk_persona_google_sub (google_sub)");
+        jdbcTemplate.execute("ALTER TABLE tbl_persona ADD CONSTRAINT uk_persona_google_sub UNIQUE (google_sub)");
     }
 }
