@@ -1,0 +1,205 @@
+﻿Diagnose log at 2026-05-28T00:32:33Z
+
+AppPath: C:\Program Files (x86)\Git\mingw32\bin\git-credential-manager.exe
+InstallDir: C:\Program Files (x86)\Git\mingw32\bin\
+Version: 2.4.1
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 26200)
+Reading environment variables... OK
+ Variables:
+HOMEPATH=\Users\Alejandro
+DriverData=C:\Windows\System32\Drivers\DriverData
+COMPUTERNAME=DESKTOP-9C6K2C3
+GIT_TRACE2_PARENT_SID=2e0633ee-accb-400b-a959-fdc9134ca966
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+OneDrive=C:\Users\Alejandro\OneDrive - Universidad de Antioquia
+Node=C:\Program Files\nodejs
+SESSIONNAME=Console
+PSExecutionPolicyPreference=Bypass
+CURSOR_AGENT=1
+PROCESSOR_REVISION=7e05
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL
+VSCODE_IPC_HOOK=\\.\pipe\dd93e38b-3.5.33-main-sock
+SystemDrive=C:
+GIT_EXEC_PATH=C:/Program Files (x86)/Git/mingw32/libexec/git-core
+TEMP=C:\Users\ALEJAN~1\AppData\Local\Temp
+LOCALAPPDATA=C:\Users\Alejandro\AppData\Local
+MSYSTEM=MINGW32
+TERM=dumb
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 126 Stepping 5, GenuineIntel
+ProgramData=C:\ProgramData
+VSCODE_ESM_ENTRYPOINT=vs/workbench/api/node/extensionHostProcess
+JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.2.13-hotspot\
+USERDOMAIN=DESKTOP-9C6K2C3
+CURSOR_LAYOUT=unifiedAgent
+NO_COLOR=1
+PROCESSOR_LEVEL=6
+NUMBER_OF_PROCESSORS=8
+TMPDIR=C:\Users\ALEJAN~1\AppData\Local\Temp
+CURSOR_EXTENSION_HOST_ROLE=agent-exec
+ZES_ENABLE_SYSMAN=1
+ProgramFiles(x86)=C:\Program Files (x86)
+PUBLIC=C:\Users\Public
+VSCODE_NLS_CONFIG={"userLocale":"en-us","osLocale":"es-mx","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\Alejandro\\AppData\\Local\\Programs\\cursor\\resources\\app\\out\\nls.messages.json","locale":"en-us","availableLanguages":{}}
+CommonProgramFiles=C:\Program Files (x86)\Common Files
+TMP=C:\Users\ALEJAN~1\AppData\Local\Temp
+VSCODE_HANDLES_UNCAUGHT_ERRORS=true
+CHROME_CRASHPAD_PIPE_NAME=\\.\pipe\crashpad_19584_TXHRAVHIAHEOSEFM
+PLINK_PROTOCOL=ssh
+MAVEN_HOME=C:\Users\Alejandro\Downloads\apache-maven-3.9.14
+MSYS=disable_pcon
+ProgramFiles=C:\Program Files (x86)
+VSCODE_CODE_CACHE_PATH=C:\Users\Alejandro\AppData\Roaming\Cursor\CachedData\aac81804b986d739acab348ed96b8bea6e83cc50
+windir=C:\WINDOWS
+ProgramW6432=C:\Program Files
+CURSOR_WORKSPACE_LABEL=Broker
+HOME=C:\Users\Alejandro
+FORCE_COLOR=0
+LC_CTYPE=C.UTF-8
+CommonProgramW6432=C:\Program Files\Common Files
+EFC_4928_4126798990=1
+LOGONSERVER=\\DESKTOP-9C6K2C3
+USERPROFILE=C:\Users\Alejandro
+SystemRoot=C:\WINDOWS
+USERDOMAIN_ROAMINGPROFILE=DESKTOP-9C6K2C3
+APPDATA=C:\Users\Alejandro\AppData\Roaming
+HOMEDRIVE=C:
+VSCODE_PID=19584
+OneDriveCommercial=C:\Users\Alejandro\OneDrive - Universidad de Antioquia
+_ZO_DOCTOR=0
+EFC_4928_1592913036=1
+PSModulePath=C:\Users\Alejandro\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules
+VSCODE_CWD=C:\Users\Alejandro\AppData\Local\Programs\cursor
+USERNAME=Alejandro
+PROCESSOR_ARCHITEW6432=AMD64
+PROCESSOR_ARCHITECTURE=x86
+OS=Windows_NT
+ComSpec=C:\WINDOWS\system32\cmd.exe
+Path=C:/Program Files (x86)/Git/mingw32/libexec/git-core;C:\Program Files (x86)\Git\mingw32\bin;C:\Program Files (x86)\Git\usr\bin;C:\Users\Alejandro\bin;c:\Users\Alejandro\AppData\Local\Programs\cursor\resources\app\resources\helpers;C:\Program Files\Eclipse Adoptium\jdk-21.0.2.13-hotspot\bin;C:\Program Files\Eclipse Adoptium\jre-21.0.2.13-hotspot\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Eclipse Adoptium\jdk-21.0.2.13-hotspot\\bin;C:\Program Files (x86)\Git\cmd;C:\Program Files\nodejs\;C:\Users\Alejandro\AppData\Local\Muse Hub\lib;C:\Users\Alejandro\Downloads\apache-maven-3.9.14\bin;;C:\Program Files\Docker\Docker\resources\bin;C:\Users\Alejandro\AppData\Local\Microsoft\WindowsApps;C:\Users\Alejandro\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Alejandro\AppData\Local\GitHubDesktop\bin;C:\Program Files\MongoDB\Server\7.0\bin;C:\Program Files\MongoDB\mongosh-2.2.6-win32-x64\mongosh-2.2.6-win32-x64\bin;C:\Users\Alejandro\AppData\Roaming\npm;C:\Users\Alejandro\AppData\Local\Programs\cursor\resources\app\bin;C:\Users\Alejandro\AppData\Local\Muse Hub\lib;C:\Users\Alejandro\AppData\Local\Programs\Antigravity\bin;C:\Users\Alejandro\AppData\Local\Programs\Antigravity IDE\bin
+VSCODE_CRASH_REPORTER_PROCESS_TYPE=extensionHost
+VSCODE_PROCESS_TITLE=extension-host (agent-exec) Broker [1-4]
+ALLUSERSPROFILE=C:\ProgramData
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\Alejandro\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\Alejandro\AppData\Local\Temp\06ce4a8c8d49bf5d3c5a0e1e'... OK
+Reading from temporary file 'C:\Users\Alejandro\AppData\Local\Temp\06ce4a8c8d49bf5d3c5a0e1e'... OK
+Deleting temporary file 'C:\Users\Alejandro\AppData\Local\Temp\06ce4a8c8d49bf5d3c5a0e1e'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\Alejandro
+UserDataDirectoryPath: C:\Users\Alejandro\.gcm
+GetCurrentDirectory(): C:\Users\Alejandro\Documents\Broker\nexa
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com...Sending HEAD request to https://example.com... OK
+ OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:59302/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.44.0.windows.1'
+Locating current repository... OK
+Git repository at 'C:/Users/Alejandro/Documents/Broker/.git'
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Program Files (x86)/Git/etc/gitconfig	pack.packsizelimit=2g
+file:C:/Program Files (x86)/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Program Files (x86)/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Program Files (x86)/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Program Files (x86)/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Program Files (x86)/Git/etc/gitconfig	filter.lfs.required=true
+file:C:/Program Files (x86)/Git/etc/gitconfig	http.sslbackend=openssl
+file:C:/Program Files (x86)/Git/etc/gitconfig	http.sslcainfo=C:/Program Files (x86)/Git/mingw32/etc/ssl/certs/ca-bundle.crt
+file:C:/Program Files (x86)/Git/etc/gitconfig	core.autocrlf=true
+file:C:/Program Files (x86)/Git/etc/gitconfig	core.fscache=true
+file:C:/Program Files (x86)/Git/etc/gitconfig	core.symlinks=false
+file:C:/Program Files (x86)/Git/etc/gitconfig	pull.rebase=false
+file:C:/Program Files (x86)/Git/etc/gitconfig	credential.helper=manager
+file:C:/Program Files (x86)/Git/etc/gitconfig	credential.https://dev.azure.com.usehttppath=true
+file:C:/Program Files (x86)/Git/etc/gitconfig	init.defaultbranch=master
+file:C:/Users/Alejandro/.gitconfig	user.email=sebastian.orrego@udea.edu.co
+file:C:/Users/Alejandro/.gitconfig	user.name=sebastian17-hub
+file:C:/Users/Alejandro/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/Alejandro/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/Alejandro/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/Alejandro/.gitconfig	filter.lfs.required=true
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/AlejoGuerraU/Broker.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Flow type is: Auto
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\Alejandro\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\Alejandro\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
