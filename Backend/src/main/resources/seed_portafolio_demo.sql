@@ -1,4 +1,3 @@
-USE broker_db;
 
 INSERT INTO tbl_persona (
   nombre,
@@ -10,7 +9,7 @@ INSERT INTO tbl_persona (
 SELECT
   'Usuario Demo Broker',
   'demo@broker.local',
-  '3000000000',
+  '1000000',
   td.id,
   '1000000000'
 FROM tbl_tipo_documento td
