@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Button from '@/components/atoms/button'
 import Icon from '@/components/atoms/icon'
 import Input from '@/components/atoms/input'
@@ -18,7 +18,7 @@ interface ModalCuentaProps {
   isOpen: boolean
   onClose: () => void
   cuenta: CuentaData
-  onSave: (cuenta: CuentaData) => void
+  onSave: (cuenta: CuentaData) => void | Promise<void>
   onSignOut: () => void
 }
 
@@ -32,6 +32,13 @@ const infoFields = [
 const Index = ({ isOpen, onClose, cuenta, onSave, onSignOut }: ModalCuentaProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState(cuenta)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!isEditing) {
+      setFormData(cuenta)
+    }
+  }, [cuenta, isEditing])
 
   const iniciales = useMemo(() => {
     return formData.nombre
@@ -55,9 +62,14 @@ const Index = ({ isOpen, onClose, cuenta, onSave, onSignOut }: ModalCuentaProps)
     }))
   }
 
-  const handleSubmit = () => {
-    onSave(formData)
-    setIsEditing(false)
+  const handleSubmit = async () => {
+    setIsSaving(true)
+    try {
+      await onSave(formData)
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (!isOpen) {
@@ -126,6 +138,7 @@ const Index = ({ isOpen, onClose, cuenta, onSave, onSignOut }: ModalCuentaProps)
                   titulo='Guardar Perfil'
                   onClick={handleSubmit}
                   color='#25B161'
+                  disabled={isSaving}
                   className='h-12 rounded-2xl text-base text-white'
                   iconName='solar:diskette-linear'
                 />

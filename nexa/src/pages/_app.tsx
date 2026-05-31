@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import ModalCuenta, { type CuentaData } from '@/components/organismos/modalCuenta'
 import Navbar from '@/components/organismos/navbar'
 import Sidebar from '@/components/organismos/sidebar'
+import { getPersonaProfile, updatePersonaProfile } from '@/services/persona'
 
 function AppContent({ Component, pageProps }: AppProps) {
   const { data: session, status } = useSession()
@@ -37,6 +38,33 @@ function AppContent({ Component, pageProps }: AppProps) {
     direccion: 'Pendiente de configurar',
     telefono: 'Pendiente de configurar',
   })
+
+  useEffect(() => {
+    if (!session?.accessToken) {
+      return
+    }
+
+    let isActive = true
+
+    getPersonaProfile(session.accessToken)
+      .then((profile) => {
+        if (!isActive) {
+          return
+        }
+
+        setCuentaExtra((currentData) => ({
+          ...currentData,
+          telefono: profile.telefono || 'Pendiente de configurar',
+        }))
+      })
+      .catch((error) => {
+        console.error('Error cargando perfil de persona:', error)
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [session?.accessToken])
 
   // Si estamos cargando o no hay sesión (y no es la página de login), mostramos un loader
   if (status === 'loading' || (status === 'unauthenticated' && router.pathname !== '/login')) {
@@ -86,10 +114,18 @@ function AppContent({ Component, pageProps }: AppProps) {
           setIsCuentaOpen(false)
           signOut({ callbackUrl: '/login' })
         }}
-        onSave={(updated) => {
+        onSave={async (updated) => {
+          if (!session?.accessToken) {
+            return
+          }
+
+          const profile = await updatePersonaProfile({
+            telefono: updated.telefono,
+          }, session.accessToken)
+
           setCuentaExtra({
             ...cuentaExtra,
-            telefono: updated.telefono,
+            telefono: profile.telefono || 'Pendiente de configurar',
             direccion: updated.direccion,
           })
           setIsCuentaOpen(false)

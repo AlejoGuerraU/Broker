@@ -1,6 +1,8 @@
 package com.broker.backend.service;
 
 import com.broker.backend.exception.ResourceNotFoundException;
+import com.broker.backend.model.persona.PersonaProfileResponse;
+import com.broker.backend.model.persona.UpdatePersonaProfileRequest;
 import com.broker.backend.persistence.entity.PersonaEntity;
 import com.broker.backend.persistence.entity.TipoDocumentoEntity;
 import com.broker.backend.persistence.repository.PersonaRepository;
@@ -36,6 +38,16 @@ public class PersonaService {
     public PersonaEntity getByEmail(String email) {
         return personaRepository.findByCorreoIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("No existe una persona con el correo " + email));
+    }
+
+    public PersonaProfileResponse getProfile(String email) {
+        return toProfileResponse(getByEmail(email));
+    }
+
+    public PersonaProfileResponse updateProfile(String email, UpdatePersonaProfileRequest request) {
+        PersonaEntity persona = getByEmail(email);
+        persona.setNumeroTelefonico(normalizeNullableText(request.telefono()));
+        return toProfileResponse(personaRepository.save(persona));
     }
 
     public PersonaEntity getOrCreateByEmail(String email) {
@@ -97,5 +109,22 @@ public class PersonaService {
         }
 
         return String.format("%010d", Math.abs(email.hashCode()) % 1_000_000_000L);
+    }
+
+    private PersonaProfileResponse toProfileResponse(PersonaEntity persona) {
+        return new PersonaProfileResponse(
+                persona.getId(),
+                persona.getNombre(),
+                persona.getCorreo(),
+                persona.getNumeroTelefonico()
+        );
+    }
+
+    private String normalizeNullableText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
     }
 }
