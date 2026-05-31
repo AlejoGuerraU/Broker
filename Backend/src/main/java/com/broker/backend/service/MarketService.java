@@ -50,6 +50,7 @@ public class MarketService {
     private static final LocalTime MARKET_OPEN = LocalTime.of(9, 30);
     private static final LocalTime MARKET_CLOSE = LocalTime.of(16, 0);
     private static final long CACHE_TTL_MINUTES = 60;
+    private static final int DEFAULT_MOST_ACTIVE_LIMIT = 20;
 
     // ── In-memory cache ──────────────────────────────────────────────────────
     private volatile List<AlphaVantageMostActiveItem> cachedMostActive = null;
@@ -75,7 +76,19 @@ public class MarketService {
             "NVDA",
             "TSLA",
             "AMZN",
-            "META"
+            "META",
+            "GOOGL",
+            "AMD",
+            "NFLX",
+            "DIS",
+            "V",
+            "MA",
+            "WMT",
+            "PG",
+            "UNH",
+            "HD",
+            "BAC",
+            "XOM"
     );
 
     private static final List<DefaultMarketAsset> DEFAULT_MARKET_ASSETS = List.of(
@@ -95,6 +108,10 @@ public class MarketService {
     private final EstadoActivoRepository estadoActivoRepository;
     private final String alphaVantageApiKey;
     private final String finnhubApiKey;
+    private final boolean alphaVantageMostActiveEnabled;
+    private final boolean alphaVantageMarketQuotesEnabled;
+    private final boolean alphaVantageQuoteFallbackEnabled;
+    private final int mostActiveLimit;
 
     public MarketService(
             RestClient.Builder restClientBuilder,
@@ -103,7 +120,11 @@ public class MarketService {
             TipoActivoRepository tipoActivoRepository,
             EstadoActivoRepository estadoActivoRepository,
             @Value("${alpha.vantage.api-key:${ALPHA_VANTAGE_API_KEY:}}") String alphaVantageApiKey,
-            @Value("${finnhub.api-key:${FINNHUB_API_KEY:}}") String finnhubApiKey
+            @Value("${finnhub.api-key:${FINNHUB_API_KEY:}}") String finnhubApiKey,
+            @Value("${market.alpha-vantage.most-active-enabled:${MARKET_ALPHA_VANTAGE_MOST_ACTIVE_ENABLED:true}}") boolean alphaVantageMostActiveEnabled,
+            @Value("${market.alpha-vantage.market-quotes-enabled:${MARKET_ALPHA_VANTAGE_MARKET_QUOTES_ENABLED:true}}") boolean alphaVantageMarketQuotesEnabled,
+            @Value("${market.alpha-vantage.quote-fallback-enabled:${MARKET_ALPHA_VANTAGE_QUOTE_FALLBACK_ENABLED:false}}") boolean alphaVantageQuoteFallbackEnabled,
+            @Value("${market.most-active-limit:${MARKET_MOST_ACTIVE_LIMIT:20}}") int mostActiveLimit
     ) {
         this.alphaVantageClient = restClientBuilder
                 .baseUrl("https://www.alphavantage.co")
@@ -117,6 +138,10 @@ public class MarketService {
         this.estadoActivoRepository = estadoActivoRepository;
         this.alphaVantageApiKey = alphaVantageApiKey;
         this.finnhubApiKey = finnhubApiKey;
+        this.alphaVantageMostActiveEnabled = alphaVantageMostActiveEnabled;
+        this.alphaVantageMarketQuotesEnabled = alphaVantageMarketQuotesEnabled;
+        this.alphaVantageQuoteFallbackEnabled = alphaVantageQuoteFallbackEnabled;
+        this.mostActiveLimit = mostActiveLimit > 0 ? mostActiveLimit : DEFAULT_MOST_ACTIVE_LIMIT;
     }
 
     @PostConstruct
@@ -138,6 +163,15 @@ public class MarketService {
         if (alphaConfigured) {
             LOGGER.info("Proveedor de analisis fundamental y activos activos: Alpha Vantage{}.",
                     finnhubConfigured ? " (respaldo de cotizaciones)" : " (cotizaciones y fundamental)");
+        }
+        if (!alphaVantageMostActiveEnabled) {
+            LOGGER.info("TOP_GAINERS_LOSERS de Alpha Vantage deshabilitado para proteger cuota.");
+        }
+        if (!alphaVantageMarketQuotesEnabled) {
+            LOGGER.info("Cotizaciones de mercado via Alpha Vantage deshabilitadas para proteger cuota.");
+        }
+        if (finnhubConfigured && !alphaVantageQuoteFallbackEnabled) {
+            LOGGER.info("Fallback de cotizaciones Finnhub -> Alpha Vantage deshabilitado para proteger cuota.");
         }
     }
 
@@ -384,6 +418,10 @@ public class MarketService {
     }
 
     private List<AlphaVantageMostActiveItem> fetchMostActiveItems() {
+        if (!alphaVantageMostActiveEnabled) {
+            return List.of();
+        }
+
         if (alphaVantageApiKey == null || alphaVantageApiKey.isBlank()) {
             return List.of();
         }
@@ -448,8 +486,8 @@ public class MarketService {
 
             if (finnhubResponse == null) {
                 // Finnhub no respondio en absoluto: intentar Alpha Vantage
-                LOGGER.warn("Finnhub devolvio respuesta nula para {}. Intentando Alpha Vantage.", simbolo);
-                return fetchAlphaVantageQuote(simbolo);
+                LOGGER.warn("Finnhub devolvio respuesta nula para {}.", simbolo);
+                return fetchAlphaVantageQuoteFallback(simbolo, "respuesta nula de Finnhub");
             }
 
             // Cuando el mercado esta cerrado (fin de semana, fuera de horario),
@@ -471,8 +509,8 @@ public class MarketService {
                     return Optional.of(closedMarketQuote);
                 }
                 // Sin ningún dato útil: intentar Alpha Vantage
-                LOGGER.warn("Finnhub no tiene datos útiles para {}. Intentando Alpha Vantage.", simbolo);
-                return fetchAlphaVantageQuote(simbolo);
+                LOGGER.warn("Finnhub no tiene datos útiles para {}.", simbolo);
+                return fetchAlphaVantageQuoteFallback(simbolo, "respuesta sin datos utiles de Finnhub");
             }
 
             GlobalQuoteItem quote = new GlobalQuoteItem(
@@ -488,11 +526,24 @@ public class MarketService {
         } catch (Exception exception) {
             LOGGER.warn("Fallo al consultar Finnhub para {}: {}", simbolo, exception.getMessage());
             // Fallback a Alpha Vantage solo si Finnhub falla con excepcion
-            return fetchAlphaVantageQuote(simbolo);
+            return fetchAlphaVantageQuoteFallback(simbolo, "excepcion de Finnhub");
         }
     }
 
+    private Optional<GlobalQuoteItem> fetchAlphaVantageQuoteFallback(String simbolo, String reason) {
+        if (!alphaVantageQuoteFallbackEnabled) {
+            LOGGER.warn("Saltando fallback a Alpha Vantage para {} por {}.", simbolo, reason);
+            return Optional.empty();
+        }
+        LOGGER.warn("Intentando Alpha Vantage para {} por {}.", simbolo, reason);
+        return fetchAlphaVantageQuote(simbolo);
+    }
+
     private Optional<GlobalQuoteItem> fetchAlphaVantageQuote(String simbolo) {
+        if (!alphaVantageMarketQuotesEnabled) {
+            LOGGER.warn("Cotizaciones de mercado via Alpha Vantage deshabilitadas. No se consulta {}.", simbolo);
+            return Optional.empty();
+        }
         if (alphaVantageApiKey == null || alphaVantageApiKey.isBlank()) {
             return Optional.empty();
         }
@@ -539,7 +590,7 @@ public class MarketService {
         LocalDateTime snapshotTime = LocalDateTime.now().withSecond(0).withNano(0);
 
         return remoteItems.stream()
-                .limit(8)
+                .limit(mostActiveLimit)
                 .map(item -> upsertAssetSnapshot(item, tipoAccion, estadoActivo, snapshotTime))
                 .toList();
     }

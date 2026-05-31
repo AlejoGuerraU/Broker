@@ -18,6 +18,7 @@ import com.broker.backend.persistence.repository.OrdenRepository;
 import com.broker.backend.persistence.repository.PosicionRepository;
 import com.broker.backend.persistence.repository.TipoOperacionRepository;
 import com.broker.backend.persistence.repository.TipoOrdenRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -50,6 +51,7 @@ public class TradingService {
     private final EstadoOrdenRepository estadoOrdenRepository;
     private final TipoOperacionRepository tipoOperacionRepository;
     private final TipoOrdenRepository tipoOrdenRepository;
+    private final boolean pendingOrderProcessorEnabled;
 
     public TradingService(
             DefaultCuentaBrokerService defaultCuentaBrokerService,
@@ -58,7 +60,8 @@ public class TradingService {
             PosicionRepository posicionRepository,
             EstadoOrdenRepository estadoOrdenRepository,
             TipoOperacionRepository tipoOperacionRepository,
-            TipoOrdenRepository tipoOrdenRepository
+            TipoOrdenRepository tipoOrdenRepository,
+            @Value("${broker.orders.pending-processor-enabled:${BROKER_ORDERS_PENDING_PROCESSOR_ENABLED:true}}") boolean pendingOrderProcessorEnabled
     ) {
         this.defaultCuentaBrokerService = defaultCuentaBrokerService;
         this.marketService = marketService;
@@ -67,6 +70,7 @@ public class TradingService {
         this.estadoOrdenRepository = estadoOrdenRepository;
         this.tipoOperacionRepository = tipoOperacionRepository;
         this.tipoOrdenRepository = tipoOrdenRepository;
+        this.pendingOrderProcessorEnabled = pendingOrderProcessorEnabled;
     }
 
     public CreateOrderResponse createOrder(String userEmail, CreateOrderRequest request) {
@@ -201,6 +205,10 @@ public class TradingService {
 
     @Scheduled(fixedDelayString = "${broker.orders.pending-processor-delay-ms:60000}")
     public void processPendingOrdersOnSchedule() {
+        if (!pendingOrderProcessorEnabled) {
+            return;
+        }
+
         try {
             processPendingOrders();
         } catch (Exception exception) {

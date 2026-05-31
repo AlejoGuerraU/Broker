@@ -39,6 +39,16 @@ services:
         sync: false
       - key: FINNHUB_API_KEY
         sync: false
+      - key: MARKET_ALPHA_VANTAGE_MOST_ACTIVE_ENABLED
+        value: "false"
+      - key: MARKET_ALPHA_VANTAGE_MARKET_QUOTES_ENABLED
+        value: "false"
+      - key: MARKET_ALPHA_VANTAGE_QUOTE_FALLBACK_ENABLED
+        value: "false"
+      - key: MARKET_MOST_ACTIVE_LIMIT
+        value: "20"
+      - key: BROKER_ORDERS_PENDING_PROCESSOR_ENABLED
+        value: "false"
 
       # Google OAuth — Client ID para verificar Google ID Tokens en el backend
       - key: GOOGLE_CLIENT_IDS
