@@ -22,6 +22,8 @@ const formatFechaCorta = (fecha: string) =>
     month: 'short',
   }).format(new Date(fecha))
 
+const getMontoAbsoluto = (monto: number) => Math.abs(monto)
+
 const Index = () => {
   const { data: session, status } = useSession()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -34,11 +36,11 @@ const Index = () => {
   const resumen = useMemo(() => {
     const ingresos = movimientos
       .filter((movimiento) => movimiento.tipo === 'ingreso')
-      .reduce((total, movimiento) => total + movimiento.monto, 0)
+      .reduce((total, movimiento) => total + getMontoAbsoluto(movimiento.monto), 0)
 
     const egresos = movimientos
       .filter((movimiento) => movimiento.tipo === 'egreso')
-      .reduce((total, movimiento) => total + movimiento.monto, 0)
+      .reduce((total, movimiento) => total + getMontoAbsoluto(movimiento.monto), 0)
 
     return {
       ingresos,
@@ -59,13 +61,14 @@ const Index = () => {
 
     const labels = movimientosOrdenados.map((movimiento) => formatFechaCorta(movimiento.fecha))
     const balanceSerie = movimientosOrdenados.map((movimiento) => {
-      balanceAcumulado += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto
+      const monto = getMontoAbsoluto(movimiento.monto)
+      balanceAcumulado += movimiento.tipo === 'ingreso' ? monto : -monto
       return Number(balanceAcumulado.toFixed(2))
     })
 
     const ingresosSerie = movimientosOrdenados.map((movimiento) => {
       if (movimiento.tipo === 'ingreso') {
-        ingresosAcumulados += movimiento.monto
+        ingresosAcumulados += getMontoAbsoluto(movimiento.monto)
       }
 
       return Number(ingresosAcumulados.toFixed(2))
@@ -73,7 +76,7 @@ const Index = () => {
 
     const egresosSerie = movimientosOrdenados.map((movimiento) => {
       if (movimiento.tipo === 'egreso') {
-        egresosAcumulados += movimiento.monto
+        egresosAcumulados += getMontoAbsoluto(movimiento.monto)
       }
 
       return Number(egresosAcumulados.toFixed(2))
