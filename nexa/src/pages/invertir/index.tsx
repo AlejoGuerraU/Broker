@@ -38,6 +38,8 @@ const fallbackChartStock: AccionMercadoItem = {
   logoClase: 'bg-[#2A313A] text-[#E6EBF0]',
 }
 
+const MOST_TRADED_CAROUSEL_LIMIT = 8
+
 const parsePrecio = (precio: string) => Number(precio.replace('$', '').replace(/,/g, ''))
 
 const formatPrice = (precio: number, moneda = 'USD') =>
@@ -192,6 +194,11 @@ const Index = () => {
       `${accion.nombre} ${accion.simbolo}`.toLowerCase().includes(termino),
     )
   }, [acciones, busqueda])
+
+  const accionesCarrusel = useMemo(
+    () => acciones.slice(0, MOST_TRADED_CAROUSEL_LIMIT),
+    [acciones],
+  )
 
   const accionSeleccionada =
     acciones.find((accion) => accion.id === selectedId) ?? acciones[0] ?? null
@@ -437,7 +444,7 @@ const Index = () => {
 
       <Carrusel
         titulo='Mas Negociadas'
-        acciones={acciones}
+        acciones={accionesCarrusel}
         isLoading={isLoading}
         sourceLabel={marketStatus?.mensaje ?? 'Datos obtenidos desde el backend'}
       />
