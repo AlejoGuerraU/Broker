@@ -492,7 +492,7 @@ const Index = () => {
       ) : null}
 
       <section className='grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)] xl:gap-6'>
-        <aside className='rounded-[28px] border border-[var(--bg-border)] bg-[#0F1318] p-4 sm:p-5 md:p-6'>
+        <aside className='self-start rounded-[28px] border border-[var(--bg-border)] bg-[#0F1318] p-4 sm:p-5 md:p-6'>
           <div className='mb-5 space-y-1'>
             <SubTitle text='Listado de acciones' className='text-[var(--bg-text)]' />
             <SubTextoMini
@@ -507,7 +507,7 @@ const Index = () => {
             ) : null}
           </div>
 
-          <div className='space-y-2'>
+          <div className='max-h-[520px] space-y-2 overflow-y-auto pr-1'>
             {accionesFiltradas.length > 0 ? (
               accionesFiltradas.map((accion) => {
                 const activa = accionSeleccionada ? accion.id === accionSeleccionada.id : false
