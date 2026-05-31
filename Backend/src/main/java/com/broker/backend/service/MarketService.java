@@ -49,7 +49,7 @@ public class MarketService {
     private static final ZoneId MARKET_ZONE = ZoneId.of("America/New_York");
     private static final LocalTime MARKET_OPEN = LocalTime.of(9, 30);
     private static final LocalTime MARKET_CLOSE = LocalTime.of(16, 0);
-    private static final long CACHE_TTL_MINUTES = 15;
+    private static final long CACHE_TTL_MINUTES = 60;
 
     // ── In-memory cache ──────────────────────────────────────────────────────
     private volatile List<AlphaVantageMostActiveItem> cachedMostActive = null;
@@ -152,7 +152,11 @@ public class MarketService {
             persistAndMapRemoteItems(remoteItems);
         }
 
-        if (hasAnyMarketApiKey()) {
+        // Solo refrescar cotizaciones si no hay un sync remoto reciente.
+        // Esto evita disparar 8+ llamadas a Finnhub/Alpha Vantage en cada
+        // petición al endpoint cuando el caché en memoria ya esta caliente
+        // o cuando la DB acaba de ser actualizada.
+        if (hasAnyMarketApiKey() && !isCacheFresh(lastRemoteSyncAt)) {
             refreshFeaturedSymbols();
         }
 
@@ -256,7 +260,7 @@ public class MarketService {
             String fuente = resolveLiveDataSource(alphaKeyConfigured, finnhubKeyConfigured, quoteCacheFresh);
             return new MarketDataStatusResponse(
                     fuente,
-                    alphaKeyConfigured,
+                    finnhubKeyConfigured,
                     true,
                     marketOpen,
                     MARKET_ZONE.getId(),
@@ -306,7 +310,29 @@ public class MarketService {
     }
 
     private void refreshFeaturedSymbols() {
-        FEATURED_SYMBOLS.forEach(this::refreshAssetQuoteInternal);
+        FEATURED_SYMBOLS.forEach(this::refreshAssetQuoteIfStale);
+    }
+
+    /**
+     * Refresca la cotizacion de un simbolo SOLO si el activo no existe en DB
+     * o su precio fue actualizado hace mas de {@link #CACHE_TTL_MINUTES} minutos.
+     * Evita llamadas innecesarias a la API cuando los datos en BD son recientes.
+     */
+    private void refreshAssetQuoteIfStale(String simbolo) {
+        Optional<ActivoEntity> existing = activoRepository.findBySimboloIgnoreCase(simbolo);
+        if (existing.isPresent()) {
+            // Comprobar si hay un snapshot reciente en el historial de precios
+            List<HistorialPrecioEntity> recent = historialPrecioRepository
+                    .findTop2ByActivoIdOrderByFechaDesc(existing.get().getId());
+            if (!recent.isEmpty()) {
+                LocalDateTime lastSnapshot = recent.get(0).getFecha();
+                if (isCacheFresh(lastSnapshot)) {
+                    LOGGER.debug("Saltando refresh de cotizacion para {} (snapshot reciente: {})", simbolo, lastSnapshot);
+                    return;
+                }
+            }
+        }
+        refreshAssetQuoteInternal(simbolo);
     }
 
     private void refreshAssetQuoteInternal(String simbolo) {
@@ -420,8 +446,32 @@ public class MarketService {
                     .retrieve()
                     .body(FinnhubQuoteResponse.class);
 
-            if (finnhubResponse == null || finnhubResponse.isEmpty()) {
-                // Fallback a Alpha Vantage si Finnhub no devuelve datos
+            if (finnhubResponse == null) {
+                // Finnhub no respondio en absoluto: intentar Alpha Vantage
+                LOGGER.warn("Finnhub devolvio respuesta nula para {}. Intentando Alpha Vantage.", simbolo);
+                return fetchAlphaVantageQuote(simbolo);
+            }
+
+            // Cuando el mercado esta cerrado (fin de semana, fuera de horario),
+            // Finnhub devuelve currentPrice=0 pero previousClose>0.
+            // En ese caso usamos previousClose como precio vigente en lugar de
+            // hacer un fallback innecesario a Alpha Vantage que consumiria cuota.
+            if (finnhubResponse.isEmpty()) {
+                if (finnhubResponse.hasPreviousClose()) {
+                    LOGGER.info("Finnhub: precio actual=0 para {} (mercado cerrado). Usando previousClose={}",
+                            simbolo, finnhubResponse.previousClose());
+                    GlobalQuoteItem closedMarketQuote = new GlobalQuoteItem(
+                            simbolo,
+                            formatQuoteNumber(finnhubResponse.previousClose()),
+                            formatQuoteNumber(finnhubResponse.previousClose())
+                    );
+                    cachedGlobalQuotes.put(simbolo, closedMarketQuote);
+                    cachedGlobalQuotesAt.put(simbolo, LocalDateTime.now());
+                    markRemoteSyncSuccess();
+                    return Optional.of(closedMarketQuote);
+                }
+                // Sin ningún dato útil: intentar Alpha Vantage
+                LOGGER.warn("Finnhub no tiene datos útiles para {}. Intentando Alpha Vantage.", simbolo);
                 return fetchAlphaVantageQuote(simbolo);
             }
 
@@ -437,7 +487,7 @@ public class MarketService {
             return Optional.of(quote);
         } catch (Exception exception) {
             LOGGER.warn("Fallo al consultar Finnhub para {}: {}", simbolo, exception.getMessage());
-            // Fallback a Alpha Vantage
+            // Fallback a Alpha Vantage solo si Finnhub falla con excepcion
             return fetchAlphaVantageQuote(simbolo);
         }
     }
@@ -784,8 +834,15 @@ public class MarketService {
             @JsonProperty("c") Double currentPrice,
             @JsonProperty("pc") Double previousClose
     ) {
+        /** true solo si no hay absolutamente ningun precio (ni actual ni anterior). */
         private boolean isEmpty() {
-            return currentPrice == null || currentPrice == 0;
+            return (currentPrice == null || currentPrice == 0)
+                    && (previousClose == null || previousClose == 0);
+        }
+
+        /** true si el mercado esta cerrado (precio actual=0) pero hay un cierre anterior valido. */
+        private boolean hasPreviousClose() {
+            return previousClose != null && previousClose > 0;
         }
     }
 

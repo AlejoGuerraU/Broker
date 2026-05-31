@@ -27,8 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FundamentalAnalysisService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FundamentalAnalysisService.class);
-    private static final int CACHE_DAYS = 7;
-    private static final long CACHE_TTL_MINUTES = 15;
+    private static final int CACHE_DAYS = 30;
+    private static final long CACHE_TTL_MINUTES = 60;
 
     // ── In-memory cache (evita llamadas duplicadas a la API en la misma sesion) ──
     private final Map<String, OverviewItem> cachedOverviews = new ConcurrentHashMap<>();
