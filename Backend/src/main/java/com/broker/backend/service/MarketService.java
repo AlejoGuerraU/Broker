@@ -126,18 +126,18 @@ public class MarketService {
 
         if (!alphaConfigured && !finnhubConfigured) {
             LOGGER.warn(
-                    "Sin ALPHA_VANTAGE_API_KEY ni FINNHUB_API_KEY. "
+                    "Sin FINNHUB_API_KEY ni ALPHA_VANTAGE_API_KEY. "
                             + "Definelas en el entorno, en Backend/.env o en application-local.properties."
             );
             return;
         }
 
-        if (alphaConfigured) {
-            LOGGER.info("Proveedor de mercado: Alpha Vantage configurado.");
-        }
         if (finnhubConfigured) {
-            LOGGER.info("Proveedor de mercado: Finnhub configurado{}.",
-                    alphaConfigured ? " (respaldo de cotizaciones)" : "");
+            LOGGER.info("Proveedor principal de cotizaciones en tiempo real: Finnhub.");
+        }
+        if (alphaConfigured) {
+            LOGGER.info("Proveedor de analisis fundamental y activos activos: Alpha Vantage{}.",
+                    finnhubConfigured ? " (respaldo de cotizaciones)" : " (cotizaciones y fundamental)");
         }
     }
 
@@ -265,8 +265,8 @@ public class MarketService {
             );
         }
 
-        if (alphaKeyConfigured || finnhubKeyConfigured) {
-            String fuente = alphaKeyConfigured ? "alpha_vantage" : "finnhub";
+        if (finnhubKeyConfigured || alphaKeyConfigured) {
+            String fuente = finnhubKeyConfigured ? "finnhub" : "alpha_vantage";
             return new MarketDataStatusResponse(
                     fuente,
                     alphaKeyConfigured,
@@ -289,7 +289,7 @@ public class MarketService {
                 persistedAssets,
                 persistedAssets > 0
                         ? "Sin API keys. Usando el ultimo estado persistido en la base de datos."
-                        : "Sin API keys ni mercado persistido. Configura ALPHA_VANTAGE_API_KEY o FINNHUB_API_KEY y recarga."
+                        : "Sin API keys ni mercado persistido. Configura FINNHUB_API_KEY o ALPHA_VANTAGE_API_KEY y recarga."
         );
     }
 
@@ -397,18 +397,61 @@ public class MarketService {
     }
 
     private Optional<GlobalQuoteItem> fetchGlobalQuote(String simbolo) {
-        if (alphaVantageApiKey == null || alphaVantageApiKey.isBlank()) {
-            // Try Finnhub if Alpha Vantage not configured
-            return fetchFinnhubQuote(simbolo);
+        if (finnhubApiKey == null || finnhubApiKey.isBlank()) {
+            // Finnhub no configurado: usar Alpha Vantage como fuente principal
+            return fetchAlphaVantageQuote(simbolo);
         }
 
         // Serve from cache if still fresh
         LocalDateTime cachedAt = cachedGlobalQuotesAt.get(simbolo);
         if (isCacheFresh(cachedAt)) {
-            LOGGER.debug("Cache hit para GLOBAL_QUOTE de {}", simbolo);
+            LOGGER.debug("Cache hit para FINNHUB_QUOTE de {}", simbolo);
             return Optional.of(cachedGlobalQuotes.get(simbolo));
         }
 
+        try {
+            FinnhubQuoteResponse finnhubResponse = finnhubClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/v1/quote")
+                            .queryParam("symbol", simbolo)
+                            .queryParam("token", finnhubApiKey)
+                            .build())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(FinnhubQuoteResponse.class);
+
+            if (finnhubResponse == null || finnhubResponse.isEmpty()) {
+                // Fallback a Alpha Vantage si Finnhub no devuelve datos
+                return fetchAlphaVantageQuote(simbolo);
+            }
+
+            GlobalQuoteItem quote = new GlobalQuoteItem(
+                    simbolo,
+                    formatQuoteNumber(finnhubResponse.currentPrice()),
+                    formatQuoteNumber(finnhubResponse.previousClose())
+            );
+            cachedGlobalQuotes.put(simbolo, quote);
+            cachedGlobalQuotesAt.put(simbolo, LocalDateTime.now());
+            markRemoteSyncSuccess();
+            LOGGER.info("Cache actualizado para FINNHUB_QUOTE de {}", simbolo);
+            return Optional.of(quote);
+        } catch (Exception exception) {
+            LOGGER.warn("Fallo al consultar Finnhub para {}: {}", simbolo, exception.getMessage());
+            // Fallback a Alpha Vantage
+            return fetchAlphaVantageQuote(simbolo);
+        }
+    }
+
+    private Optional<GlobalQuoteItem> fetchAlphaVantageQuote(String simbolo) {
+        if (alphaVantageApiKey == null || alphaVantageApiKey.isBlank()) {
+            return Optional.empty();
+        }
+        // Reutilizar el mismo cache compartido
+        LocalDateTime cachedAt = cachedGlobalQuotesAt.get(simbolo);
+        if (isCacheFresh(cachedAt)) {
+            LOGGER.debug("Cache hit para GLOBAL_QUOTE (Alpha Vantage) de {}", simbolo);
+            return Optional.of(cachedGlobalQuotes.get(simbolo));
+        }
         try {
             GlobalQuoteResponse response = alphaVantageClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -422,57 +465,17 @@ public class MarketService {
                     .body(GlobalQuoteResponse.class);
 
             if (response == null || response.hasError() || response.quote() == null || response.quote().isEmpty()) {
-                // Fallback to Finnhub
-                return fetchFinnhubQuote(simbolo);
+                LOGGER.warn("Alpha Vantage no devolvio datos validos de cotizacion para {}", simbolo);
+                return Optional.empty();
             }
 
             cachedGlobalQuotes.put(simbolo, response.quote());
             cachedGlobalQuotesAt.put(simbolo, LocalDateTime.now());
             markRemoteSyncSuccess();
-            LOGGER.info("Cache actualizado para GLOBAL_QUOTE de {}", simbolo);
+            LOGGER.info("Cache actualizado para GLOBAL_QUOTE (Alpha Vantage respaldo) de {}", simbolo);
             return Optional.of(response.quote());
         } catch (Exception exception) {
             LOGGER.warn("Fallo al consultar Alpha Vantage para {}: {}", simbolo, exception.getMessage());
-            // Fallback to Finnhub
-            return fetchFinnhubQuote(simbolo);
-        }
-    }
-
-    private Optional<GlobalQuoteItem> fetchFinnhubQuote(String simbolo) {
-        if (finnhubApiKey == null || finnhubApiKey.isBlank()) {
-            return Optional.empty();
-        }
-        // No separate cache, reuse same maps
-        LocalDateTime cachedAt = cachedGlobalQuotesAt.get(simbolo);
-        if (isCacheFresh(cachedAt)) {
-            LOGGER.debug("Cache hit para FINNHUB_QUOTE de {}", simbolo);
-            return Optional.of(cachedGlobalQuotes.get(simbolo));
-        }
-        try {
-            FinnhubQuoteResponse finnhubResponse = finnhubClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/v1/quote")
-                            .queryParam("symbol", simbolo)
-                            .queryParam("token", finnhubApiKey)
-                            .build())
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
-                    .body(FinnhubQuoteResponse.class);
-            if (finnhubResponse == null || finnhubResponse.isEmpty()) {
-                return Optional.empty();
-            }
-            GlobalQuoteItem quote = new GlobalQuoteItem(
-                    simbolo,
-                    formatQuoteNumber(finnhubResponse.currentPrice()),
-                    formatQuoteNumber(finnhubResponse.previousClose())
-            );
-            cachedGlobalQuotes.put(simbolo, quote);
-            cachedGlobalQuotesAt.put(simbolo, LocalDateTime.now());
-            markRemoteSyncSuccess();
-            LOGGER.info("Cache actualizado para FINNHUB_QUOTE de {}", simbolo);
-            return Optional.of(quote);
-        } catch (Exception e) {
-            LOGGER.warn("Fallo al consultar Finnhub para {}: {}", simbolo, e.getMessage());
             return Optional.empty();
         }
     }
@@ -676,21 +679,22 @@ public class MarketService {
     }
 
     private String resolveLiveDataSource(boolean alphaKeyConfigured, boolean finnhubKeyConfigured, boolean quoteCacheFresh) {
-        if (cachedMostActive != null && !cachedMostActive.isEmpty()) {
-            return "alpha_vantage";
-        }
+        // Finnhub es la fuente principal de cotizaciones en tiempo real
         if (finnhubKeyConfigured && quoteCacheFresh) {
             return "finnhub";
         }
-        if (alphaKeyConfigured) {
+        if (cachedMostActive != null && !cachedMostActive.isEmpty()) {
             return "alpha_vantage";
         }
-        return finnhubKeyConfigured ? "finnhub" : "respaldo_local";
+        if (finnhubKeyConfigured) {
+            return "finnhub";
+        }
+        return alphaKeyConfigured ? "alpha_vantage" : "respaldo_local";
     }
 
     private String buildLiveDataMessage(String fuente) {
         return switch (fuente) {
-            case "finnhub" -> "Cotizaciones en vivo desde Finnhub.";
+            case "finnhub" -> "Cotizaciones en tiempo real desde Finnhub.";
             case "alpha_vantage" -> "Mercado sincronizado desde Alpha Vantage.";
             default -> "Datos de mercado actualizados.";
         };
