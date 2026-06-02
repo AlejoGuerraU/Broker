@@ -78,7 +78,7 @@ graph TD
 ```
 
 * **Caché en Base de Datos (`tbl_analisis_fundamental_accion`)**: Cuando el cliente solicita el análisis fundamental de un activo, el servicio [FundamentalAnalysisService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/FundamentalAnalysisService.java) valida si existe en base de datos y si su fecha de actualización es menor o igual a **7 días** (`CACHE_DAYS = 7`). Si se cumple, lo sirve directamente desde MySQL.
-* **Caché en Memoria (In-Memory Maps)**: Para mitigar múltiples consultas concurrentes del mismo símbolo en ráfagas de renders, el backend guarda las respuestas en memoria en mapas concurrentes (`ConcurrentHashMap`) con un tiempo de expiración (TTL) de **15 minutos** (`CACHE_TTL_MINUTES = 15`).
+* **Caché en Memoria (In-Memory Maps)**: Para mitigar múltiples consultas concurrentes del mismo símbolo en ráfagas de renders, el backend guarda las respuestas en memoria en mapas concurrentes (`ConcurrentHashMap`) con un tiempo de expiración (TTL) configurable mediante `MARKET_CACHE_TTL_MINUTES`, por defecto **1 minuto**.
 * **Respaldo Local Fijo**: En ausencia de conexión con Alpha Vantage, el sistema expone un sembrado local predefinido en base a Apple, NVIDIA, Tesla, Amazon, Microsoft y Meta. El endpoint `/api/market/status` reporta en tiempo real si el servidor está consumiendo datos en vivo (`alpha_vantage`) o si está operando bajo el `respaldo_local`.
 
 ### 📈 3. Motor Transaccional de Trading (Órdenes Market, Limit y Stop)
@@ -127,7 +127,7 @@ Todos los endpoints (excepto la validación inicial de login) requieren el encab
 * `POST /api/portafolio/reset` - Reinicia la cuenta demo restableciendo el balance base y borrando registros.
 
 ### 📈 Mercado y Cotizaciones
-* `GET /api/market/most-active` - Devuelve las cotizaciones más activas (con caché integrado de 15 minutos).
+* `GET /api/market/most-active` - Devuelve las cotizaciones más activas (con caché integrado configurable mediante `MARKET_CACHE_TTL_MINUTES`, por defecto 1 minuto).
 * `GET /api/market/assets/{symbol}` - Devuelve la cotización y variación de un activo.
 * `GET /api/market/assets/{symbol}/fundamentals` - Retorna métricas fundamentales del activo consultando DB o Alpha Vantage.
 * `GET /api/market/status` - Retorna metadatos de sincronización, la fuente de mercado utilizada y el estado de la API Key.

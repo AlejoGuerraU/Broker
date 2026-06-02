@@ -45,7 +45,7 @@ graph TD
 Para evitar el consumo excesivo de créditos de las APIs de Alpha Vantage y robustecer la aplicación ante caídas del proveedor, se implementó una estrategia híbrida:
 * **Caché en Base de Datos (Persistente)**: Las consultas del endpoint `GET /api/market/assets/{symbol}/fundamentals` almacenan los datos en la tabla `tbl_analisis_fundamental_accion`. Si un registro existe y se actualizó hace **menos de 7 días**, se retorna de inmediato sin consumir API externa.
 * **Caché en Memoria (Sesión/Transición)**:
-  * El backend almacena cotizaciones individuales (`GLOBAL_QUOTE`) e índices más activos (`TOP_GAINERS_LOSERS`) con un tiempo de vida (TTL) de **15 minutos**.
+  * El backend almacena cotizaciones individuales (`GLOBAL_QUOTE`) e índices más activos (`TOP_GAINERS_LOSERS`) con un tiempo de vida (TTL) configurable mediante `MARKET_CACHE_TTL_MINUTES`, por defecto **1 minuto**.
   * Las peticiones consecutivas al análisis fundamental de activos usan un caché de mapa de memoria con **15 minutos** de TTL en el servicio [FundamentalAnalysisService.java](file:///c:/Users/Alejandro/Documents/Broker/Backend/src/main/java/com/broker/backend/service/FundamentalAnalysisService.java).
 * **Respaldo Local (Seeding)**: En caso de ausencia total de API Keys o caída de conexión, la aplicación sembrará un universo de datos fijos (`AAPL`, `NVDA`, `TSLA`, `AMZN`, `MSFT`, `META`) asegurando que el simulador continúe 100% operativo.
 
@@ -218,6 +218,7 @@ JWT_SECRET=tu_secreto_super_seguro_para_firmar_los_tokens_jwt
 GOOGLE_CLIENT_IDS=client_id_prod,client_id_local
 ALPHA_VANTAGE_API_KEY=tu_api_key_de_alpha_vantage
 FINNHUB_API_KEY=tu_api_key_de_finnhub_opcional
+MARKET_CACHE_TTL_MINUTES=1
 ```
 
 Para desarrollo local puedes copiar `Backend/.env.example` a `Backend/.env` o `Backend/src/main/resources/application-local.properties.example` a `application-local.properties` (el backend las carga automaticamente al arrancar).

@@ -47,6 +47,8 @@ services:
         value: "false"
       - key: MARKET_MOST_ACTIVE_LIMIT
         value: "20"
+      - key: MARKET_CACHE_TTL_MINUTES
+        value: "1"
       - key: BROKER_ORDERS_PENDING_PROCESSOR_ENABLED
         value: "false"
 

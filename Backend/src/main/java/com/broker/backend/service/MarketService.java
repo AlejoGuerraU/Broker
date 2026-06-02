@@ -49,7 +49,7 @@ public class MarketService {
     private static final ZoneId MARKET_ZONE = ZoneId.of("America/New_York");
     private static final LocalTime MARKET_OPEN = LocalTime.of(9, 30);
     private static final LocalTime MARKET_CLOSE = LocalTime.of(16, 0);
-    private static final long CACHE_TTL_MINUTES = 60;
+    private static final long DEFAULT_MARKET_CACHE_TTL_MINUTES = 1;
     private static final int DEFAULT_MOST_ACTIVE_LIMIT = 20;
 
     // ── In-memory cache ──────────────────────────────────────────────────────
@@ -112,6 +112,7 @@ public class MarketService {
     private final boolean alphaVantageMarketQuotesEnabled;
     private final boolean alphaVantageQuoteFallbackEnabled;
     private final int mostActiveLimit;
+    private final long marketCacheTtlMinutes;
 
     public MarketService(
             RestClient.Builder restClientBuilder,
@@ -124,7 +125,8 @@ public class MarketService {
             @Value("${market.alpha-vantage.most-active-enabled:${MARKET_ALPHA_VANTAGE_MOST_ACTIVE_ENABLED:true}}") boolean alphaVantageMostActiveEnabled,
             @Value("${market.alpha-vantage.market-quotes-enabled:${MARKET_ALPHA_VANTAGE_MARKET_QUOTES_ENABLED:true}}") boolean alphaVantageMarketQuotesEnabled,
             @Value("${market.alpha-vantage.quote-fallback-enabled:${MARKET_ALPHA_VANTAGE_QUOTE_FALLBACK_ENABLED:false}}") boolean alphaVantageQuoteFallbackEnabled,
-            @Value("${market.most-active-limit:${MARKET_MOST_ACTIVE_LIMIT:20}}") int mostActiveLimit
+            @Value("${market.most-active-limit:${MARKET_MOST_ACTIVE_LIMIT:20}}") int mostActiveLimit,
+            @Value("${market.cache-ttl-minutes:${MARKET_CACHE_TTL_MINUTES:1}}") long marketCacheTtlMinutes
     ) {
         this.alphaVantageClient = restClientBuilder
                 .baseUrl("https://www.alphavantage.co")
@@ -142,6 +144,7 @@ public class MarketService {
         this.alphaVantageMarketQuotesEnabled = alphaVantageMarketQuotesEnabled;
         this.alphaVantageQuoteFallbackEnabled = alphaVantageQuoteFallbackEnabled;
         this.mostActiveLimit = mostActiveLimit > 0 ? mostActiveLimit : DEFAULT_MOST_ACTIVE_LIMIT;
+        this.marketCacheTtlMinutes = marketCacheTtlMinutes > 0 ? marketCacheTtlMinutes : DEFAULT_MARKET_CACHE_TTL_MINUTES;
     }
 
     @PostConstruct
@@ -349,7 +352,7 @@ public class MarketService {
 
     /**
      * Refresca la cotizacion de un simbolo SOLO si el activo no existe en DB
-     * o su precio fue actualizado hace mas de {@link #CACHE_TTL_MINUTES} minutos.
+     * o su precio fue actualizado hace mas de marketCacheTtlMinutes minutos.
      * Evita llamadas innecesarias a la API cuando los datos en BD son recientes.
      */
     private void refreshAssetQuoteIfStale(String simbolo) {
@@ -429,7 +432,7 @@ public class MarketService {
         // Serve from cache if still fresh
         if (cachedMostActive != null && isCacheFresh(cachedMostActiveAt)) {
             LOGGER.debug("Cache hit para TOP_GAINERS_LOSERS (expira en {} min)",
-                    CACHE_TTL_MINUTES - java.time.Duration.between(cachedMostActiveAt, LocalDateTime.now()).toMinutes());
+                    marketCacheTtlMinutes - java.time.Duration.between(cachedMostActiveAt, LocalDateTime.now()).toMinutes());
             return cachedMostActive;
         }
 
@@ -772,7 +775,7 @@ public class MarketService {
     }
 
     private boolean isCacheFresh(LocalDateTime cachedAt) {
-        return cachedAt != null && cachedAt.isAfter(LocalDateTime.now().minusMinutes(CACHE_TTL_MINUTES));
+        return cachedAt != null && cachedAt.isAfter(LocalDateTime.now().minusMinutes(marketCacheTtlMinutes));
     }
 
     private void markRemoteSyncSuccess() {
