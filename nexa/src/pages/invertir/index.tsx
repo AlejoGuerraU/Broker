@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { MediumTitle, SubTexto, SubTextoMini, SubTitle } from '@/components/atoms/heroTitles'
 import Input from '@/components/atoms/input'
@@ -39,6 +39,7 @@ const fallbackChartStock: AccionMercadoItem = {
 }
 
 const MOST_TRADED_CAROUSEL_LIMIT = 8
+const MARKET_AUTO_REFRESH_INTERVAL_MS = 60_000
 
 const parsePrecio = (precio: string) => Number(precio.replace('$', '').replace(/,/g, ''))
 
@@ -359,7 +360,7 @@ const Index = () => {
     return `Historial real de ${accionSeleccionada?.simbolo ?? '---'} disponible en la base de datos`
   }, [accionSeleccionada?.simbolo, isLoadingPriceHistory, priceHistory])
 
-  const refreshMarket = async (currentSelectedId?: number) => {
+  const refreshMarket = useCallback(async (currentSelectedId?: number) => {
     const marketItems = await getMostActiveStocks()
     const status = await getMarketStatus()
 
@@ -375,7 +376,45 @@ const Index = () => {
       const stillExists = marketItems.some((accion) => accion.id === targetId)
       return stillExists ? targetId : marketItems[0].id
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    let ignore = false
+    let isRefreshing = false
+
+    const refreshVisibleMarket = async () => {
+      if (document.visibilityState !== 'visible' || isRefreshing) {
+        return
+      }
+
+      isRefreshing = true
+
+      try {
+        await refreshMarket(accionSeleccionada?.id)
+
+        if (accionSeleccionada?.simbolo) {
+          const data = await getMarketAssetHistory(accionSeleccionada.simbolo)
+
+          if (!ignore) {
+            setPriceHistory(data)
+          }
+        }
+      } catch (error) {
+        if (!ignore) {
+          setMarketError(error instanceof Error ? error.message : 'No se pudo actualizar el mercado.')
+        }
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    const intervalId = window.setInterval(refreshVisibleMarket, MARKET_AUTO_REFRESH_INTERVAL_MS)
+
+    return () => {
+      ignore = true
+      window.clearInterval(intervalId)
+    }
+  }, [accionSeleccionada?.id, accionSeleccionada?.simbolo, refreshMarket])
 
   const handleSubmitOrder = async () => {
     if (!accionSeleccionada) {
